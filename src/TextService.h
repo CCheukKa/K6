@@ -44,6 +44,9 @@ class CTextService : public ITfTextInputProcessor, public ITfKeyEventSink {
     std::wstring _preedit;
     std::vector<std::wstring> _candidates;
     UINT _selectedCandidate;
+    BOOL _enabled;          // IME on/off state
+    BOOL _shiftPressed;     // Track if Shift was pressed alone
+    BOOL _otherKeyPressed;  // Track if other key was pressed during Shift
 
     CCandidateWindow* _candidateWindow;
     CDictionary _dictionary;
@@ -51,4 +54,5 @@ class CTextService : public ITfTextInputProcessor, public ITfKeyEventSink {
     void CommitText(ITfContext* pContext, const std::wstring& text);
     void UpdateCandidateWindow();
     void Reset();
+    void ToggleEnabled();
 };

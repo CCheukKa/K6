@@ -1,11 +1,25 @@
 #include "TextService.h"
 
 #include <new>
+#include <sstream>
 
 #include "EditSession.h"
 
+// Debug helper
+static void DebugLog(const wchar_t* msg) {
+    OutputDebugStringW(msg);
+    OutputDebugStringW(L"\n");
+}
+
+static void DebugLog(const wchar_t* msg, WPARAM wParam) {
+    std::wstringstream ss;
+    ss << msg << L" wParam=0x" << std::hex << wParam;
+    OutputDebugStringW(ss.str().c_str());
+    OutputDebugStringW(L"\n");
+}
+
 CTextService::CTextService()
-    : _refCount(1), _threadMgr(nullptr), _clientId(TF_CLIENTID_NULL), _keystrokeMgr(nullptr), _candidateWindow(nullptr), _selectedCandidate(0) {
+    : _refCount(1), _threadMgr(nullptr), _clientId(TF_CLIENTID_NULL), _keystrokeMgr(nullptr), _candidateWindow(nullptr), _selectedCandidate(0), _enabled(TRUE), _shiftPressed(FALSE), _otherKeyPressed(FALSE) {
     _candidateWindow = new CCandidateWindow();
     _dictionary.LoadFromFile(CDictionary::GetDefaultDictionaryPath());
 }
@@ -45,6 +59,7 @@ CTextService::Release() {
 
 // ITfTextInputProcessor
 STDMETHODIMP CTextService::Activate(ITfThreadMgr* ptim, TfClientId tid) {
+    DebugLog(L"[IME] Activate called");
     if (!ptim) return E_INVALIDARG;
 
     _threadMgr = ptim;
@@ -52,7 +67,14 @@ STDMETHODIMP CTextService::Activate(ITfThreadMgr* ptim, TfClientId tid) {
     _clientId = tid;
 
     if (SUCCEEDED(_threadMgr->QueryInterface(IID_ITfKeystrokeMgr, (void**)&_keystrokeMgr))) {
-        _keystrokeMgr->AdviseKeyEventSink(_clientId, this, TRUE);
+        HRESULT hr = _keystrokeMgr->AdviseKeyEventSink(_clientId, this, TRUE);
+        if (SUCCEEDED(hr)) {
+            DebugLog(L"[IME] AdviseKeyEventSink SUCCESS");
+        } else {
+            DebugLog(L"[IME] AdviseKeyEventSink FAILED");
+        }
+    } else {
+        DebugLog(L"[IME] Failed to get ITfKeystrokeMgr");
     }
     return S_OK;
 }
@@ -72,13 +94,23 @@ STDMETHODIMP CTextService::Deactivate() {
 }
 
 // ITfKeyEventSink
-STDMETHODIMP CTextService::OnSetFocus(BOOL) { return S_OK; }
+STDMETHODIMP CTextService::OnSetFocus(BOOL fForeground) {
+    DebugLog(L"[IME] OnSetFocus", fForeground);
+    return S_OK;
+}
 
 STDMETHODIMP CTextService::OnTestKeyDown(ITfContext*, WPARAM wParam, LPARAM, BOOL* pfEaten) {
     if (!pfEaten) return E_INVALIDARG;
     *pfEaten = FALSE;
 
-    // Letters always eaten
+    DebugLog(L"[IME] OnTestKeyDown", wParam);
+
+    // When IME is disabled, don't eat any keys
+    if (!_enabled) {
+        return S_OK;
+    }
+
+    // Letters always eaten when enabled
     if ((wParam >= 'A' && wParam <= 'Z') || (wParam >= 'a' && wParam <= 'z')) {
         *pfEaten = TRUE;
     }
@@ -97,15 +129,35 @@ STDMETHODIMP CTextService::OnTestKeyDown(ITfContext*, WPARAM wParam, LPARAM, BOO
     return S_OK;
 }
 
-STDMETHODIMP CTextService::OnTestKeyUp(ITfContext*, WPARAM, LPARAM, BOOL* pfEaten) {
+STDMETHODIMP CTextService::OnTestKeyUp(ITfContext*, WPARAM wParam, LPARAM, BOOL* pfEaten) {
     *pfEaten = FALSE;
+    DebugLog(L"[IME] OnTestKeyUp", wParam);
     return S_OK;
 }
 
 STDMETHODIMP CTextService::OnKeyDown(ITfContext* pContext, WPARAM wParam, LPARAM, BOOL* pfEaten) {
+    DebugLog(L"[IME] OnKeyDown", wParam);
     if (!pfEaten) return E_INVALIDARG;
     *pfEaten = FALSE;
     if (!pContext) return S_OK;
+
+    // Track Shift key state
+    if (wParam == VK_SHIFT || wParam == VK_LSHIFT || wParam == VK_RSHIFT) {
+        DebugLog(L"[IME] Shift pressed - tracking");
+        _shiftPressed = TRUE;
+        _otherKeyPressed = FALSE;
+        return S_OK;
+    }
+
+    // Any other key pressed while Shift is down
+    if (_shiftPressed) {
+        _otherKeyPressed = TRUE;
+    }
+
+    // When IME is disabled, pass through all keys
+    if (!_enabled) {
+        return S_OK;
+    }
 
     // Letter keys - accumulate preedit
     if ((wParam >= 'A' && wParam <= 'Z') || (wParam >= 'a' && wParam <= 'z')) {
@@ -165,12 +217,26 @@ STDMETHODIMP CTextService::OnKeyDown(ITfContext* pContext, WPARAM wParam, LPARAM
     return S_OK;
 }
 
-STDMETHODIMP CTextService::OnKeyUp(ITfContext*, WPARAM, LPARAM, BOOL* pfEaten) {
+STDMETHODIMP CTextService::OnKeyUp(ITfContext*, WPARAM wParam, LPARAM, BOOL* pfEaten) {
+    DebugLog(L"[IME] OnKeyUp", wParam);
     *pfEaten = FALSE;
+
+    // Toggle IME on Shift release if no other key was pressed
+    if (wParam == VK_SHIFT || wParam == VK_LSHIFT || wParam == VK_RSHIFT) {
+        DebugLog(L"[IME] Shift released");
+        if (_shiftPressed && !_otherKeyPressed) {
+            DebugLog(L"[IME] TOGGLING!");
+            ToggleEnabled();
+        }
+        _shiftPressed = FALSE;
+        _otherKeyPressed = FALSE;
+    }
+
     return S_OK;
 }
 
-STDMETHODIMP CTextService::OnPreservedKey(ITfContext*, REFGUID, BOOL* pfEaten) {
+STDMETHODIMP CTextService::OnPreservedKey(ITfContext*, REFGUID rguid, BOOL* pfEaten) {
+    DebugLog(L"[IME] OnPreservedKey");
     *pfEaten = FALSE;
     return S_OK;
 }
@@ -200,4 +266,12 @@ void CTextService::Reset() {
     _candidates.clear();
     _selectedCandidate = 0;
     _candidateWindow->Hide();
+}
+
+void CTextService::ToggleEnabled() {
+    _enabled = !_enabled;
+    if (!_enabled) {
+        // When disabling, clear any active composition
+        Reset();
+    }
 }
