@@ -4,11 +4,14 @@
 #include <string>
 #include <vector>
 
+#include "TextService.h"
+
 class CCandidateWindow {
    public:
     CCandidateWindow();
     ~CCandidateWindow();
 
+    void SetState(CTextService::State state);
     void SetCandidates(const std::vector<std::wstring>& candidates);
     void SetPreedit(const std::wstring& preedit);
     void SetGhostPreedit(const std::wstring& ghostPreedit);
@@ -31,6 +34,7 @@ class CCandidateWindow {
     std::wstring _ghostPreedit;
     UINT _selection;
     UINT _page;
+    CTextService::State _state;
 
     static const UINT CANDIDATES_PER_PAGE = 9;
     static const int PADDING = 8;

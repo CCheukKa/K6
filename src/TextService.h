@@ -5,11 +5,12 @@
 #include <string>
 #include <vector>
 
-#include "CandidateWindow.h"
 #include "Dictionary.h"
 #include "Stroke.h"
 #include "Suggestions.h"
 #include "guid.h"
+
+class CCandidateWindow;
 
 class CTextService : public ITfTextInputProcessor, public ITfKeyEventSink {
    public:
@@ -37,13 +38,13 @@ class CTextService : public ITfTextInputProcessor, public ITfKeyEventSink {
 
     TfClientId GetClientId() const { return _clientId; }
 
-   private:
     enum class State {
         DISABLED,
         TYPING,
         SELECTING
     };
 
+   private:
     LONG _refCount;
     ITfThreadMgr* _threadMgr;
     TfClientId _clientId;

@@ -4,6 +4,7 @@
 #include <new>
 #include <sstream>
 
+#include "CandidateWindow.h"
 #include "EditSession.h"
 
 // Debug helper
@@ -495,6 +496,7 @@ void CTextService::UpdateCandidateWindow() {
     _candidateWindow->SetCandidates(_candidates.empty() ? _suggestions : _candidates);
     _candidateWindow->SetSelection(_selectedCandidate);
     _candidateWindow->SetPage(_page);
+    _candidateWindow->SetState(_state);
 
     POINT pt;
     GetCaretPos(&pt);

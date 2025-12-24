@@ -24,6 +24,10 @@ void CCandidateWindow::SetCandidates(const std::vector<std::wstring>& candidates
     }
 }
 
+void CCandidateWindow::SetState(CTextService::State state) {
+    _state = state;
+}
+
 void CCandidateWindow::SetPreedit(const std::wstring& preedit) {
     _preedit = preedit;
     if (_hwnd) {
@@ -138,8 +142,8 @@ void CCandidateWindow::Paint(HDC hdc) {
     SelectObject(hdc, hOldPen);
     DeleteObject(hPen);
 
-    // Font
-    HFONT hFont = CreateFont(18, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+    // Font (bold for visibility)
+    HFONT hFont = CreateFont(18, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
                              DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                              CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Microsoft JhengHei");
     HFONT hOldFont = (HFONT)SelectObject(hdc, hFont);
@@ -174,19 +178,27 @@ void CCandidateWindow::Paint(HDC hdc) {
         UINT count = min(CANDIDATES_PER_PAGE, total - start);
         for (UINT i = 0; i < count; i++) {
             RECT itemRect = {PADDING, y + (int)i * LINE_HEIGHT, rc.right - PADDING, y + (int)(i + 1) * LINE_HEIGHT};
+            SetTextColor(hdc, RGB(0, 0, 0));
 
-            if (i == _selection) {
-                HBRUSH hSelBrush = CreateSolidBrush(RGB(0, 120, 215));
-                FillRect(hdc, &itemRect, hSelBrush);
-                DeleteObject(hSelBrush);
-                SetTextColor(hdc, RGB(255, 255, 255));
-            } else {
-                SetTextColor(hdc, RGB(0, 0, 0));
-            }
+            wchar_t numBuf[16];
+            swprintf_s(numBuf, L"%d.", i + 1);
 
-            wchar_t buf[256];
-            swprintf_s(buf, L"%d. %s", i + 1, _candidates[start + i].c_str());
-            DrawText(hdc, buf, -1, &itemRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+            SIZE numSize = {0, 0};
+            GetTextExtentPoint32(hdc, numBuf, -1, &numSize);
+
+            RECT numRect = itemRect;
+            numRect.right = numRect.left + numSize.cx + 20;  // small padding after the number
+
+            // Number color: gray when unselected, white when selected
+            SetTextColor(hdc, (_state == CTextService::State::SELECTING) ? RGB(96, 96, 96) : RGB(200, 200, 200));
+            DrawText(hdc, numBuf, -1, &numRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+
+            RECT candRect = itemRect;
+            candRect.left = numRect.right;
+
+            // Candidate color: follow selection (white on highlight, black otherwise)
+            SetTextColor(hdc, (i == _selection) ? RGB(255, 255, 255) : RGB(0, 0, 0));
+            DrawText(hdc, _candidates[start + i].c_str(), -1, &candRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
         }
     }
 
