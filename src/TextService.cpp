@@ -166,6 +166,28 @@ STDMETHODIMP CTextService::OnTestKeyDown(ITfContext*, WPARAM wParam, LPARAM, BOO
 
     if (_state == State::DISABLED) return S_OK;
 
+    // Check for modifier keys - if any are held, let the key through
+    // This includes Shift when pressed with another key (but not lone Shift)
+    bool shiftHeld = (GetKeyState(VK_SHIFT) & 0x8000) != 0;
+    bool otherModifier = (GetKeyState(VK_CONTROL) & 0x8000) ||
+                         (GetKeyState(VK_MENU) & 0x8000) ||  // Alt key
+                         (GetKeyState(VK_LWIN) & 0x8000) ||
+                         (GetKeyState(VK_RWIN) & 0x8000);
+
+    // Let through if any non-Shift modifier is held
+    if (otherModifier) {
+        return S_OK;
+    }
+
+    // Let through if Shift is held with a non-stroke key (for symbols)
+    if (shiftHeld) {
+        wchar_t stroke = 0;
+        // Only eat the key if it's a stroke key; otherwise let it through for symbols
+        if (!MapStrokeKey(wParam, stroke)) {
+            return S_OK;
+        }
+    }
+
     UINT digit = 0;
     wchar_t stroke = 0;
     if (MapStrokeKey(wParam, stroke)) {
@@ -254,6 +276,28 @@ STDMETHODIMP CTextService::OnKeyDown(ITfContext* pContext, WPARAM wParam, LPARAM
 
     if (_state == State::DISABLED || !_enabled) {
         return S_OK;
+    }
+
+    // Check for modifier keys - if any are held, let the key through
+    // This includes Shift when pressed with another key (but not lone Shift)
+    bool shiftHeld = (GetKeyState(VK_SHIFT) & 0x8000) != 0;
+    bool otherModifier = (GetKeyState(VK_CONTROL) & 0x8000) ||
+                         (GetKeyState(VK_MENU) & 0x8000) ||  // Alt key
+                         (GetKeyState(VK_LWIN) & 0x8000) ||
+                         (GetKeyState(VK_RWIN) & 0x8000);
+
+    // Let through if any non-Shift modifier is held
+    if (otherModifier) {
+        return S_OK;
+    }
+
+    // Let through if Shift is held with a non-stroke key (for symbols)
+    if (shiftHeld) {
+        wchar_t stroke = 0;
+        // Only eat the key if it's a stroke key; otherwise let it through for symbols
+        if (!MapStrokeKey(wParam, stroke)) {
+            return S_OK;
+        }
     }
 
     wchar_t stroke = 0;
