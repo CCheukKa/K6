@@ -17,7 +17,7 @@ $ErrorActionPreference = "Stop"
 $ProjectRoot = if ($DllPath) {
     Split-Path -Parent (Split-Path -Parent $DllPath)
 } else {
-    Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+    Split-Path -Parent $PSScriptRoot  # $PSScriptRoot is scripts folder, parent is K6 folder
 }
 
 $BuildDir = Join-Path $ProjectRoot "build"
