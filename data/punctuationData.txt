@@ -1,0 +1,35 @@
+# Simple character substitution map
+# Format: ASCII_char<tab>Chinese_char
+# One mapping per line
+`	・
+~	～
+!	！
+@	＠
+#	＃
+$	＄
+%	％
+^	︿
+&	＆
+*	＊
+(	（
+)	）
+_	＿
++	＋
+-	－
+=	＝
+[	「
+]	」
+\	＼
+{	『
+}	』
+|	｜
+;	；
+'	、
+:	：
+"	＂
+,	，
+.	。
+/	／
+<	《
+>	》
+?	？

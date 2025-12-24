@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "Dictionary.h"
+#include "Punctuation.h"
 #include "Stroke.h"
 #include "Suggestions.h"
 #include "guid.h"
@@ -29,7 +30,8 @@ class CTextService : public ITfTextInputProcessor, public ITfKeyEventSink {
     STDMETHODIMP Deactivate() override;
 
     // ITfKeyEventSink
-    STDMETHODIMP OnSetFocus(BOOL fForeground) override;
+    STDMETHODIMP OnSetFocus(BOOL fForeground);
+    STDMETHODIMP OnTestKillFocus(ITfContext* pContext, WPARAM wParam, LPARAM lParam, BOOL* pfEaten);
     STDMETHODIMP OnTestKeyDown(ITfContext* pContext, WPARAM wParam, LPARAM lParam, BOOL* pfEaten) override;
     STDMETHODIMP OnTestKeyUp(ITfContext* pContext, WPARAM wParam, LPARAM lParam, BOOL* pfEaten) override;
     STDMETHODIMP OnKeyDown(ITfContext* pContext, WPARAM wParam, LPARAM lParam, BOOL* pfEaten) override;
@@ -65,6 +67,7 @@ class CTextService : public ITfTextInputProcessor, public ITfKeyEventSink {
     CCandidateWindow* _candidateWindow;
     CDictionary _dictionary;
     CSuggestions _suggestionDict;
+    CPunctuation _punctuationMap;
 
     void CommitText(ITfContext* pContext, const std::wstring& text);
     void UpdateCandidateWindow();
@@ -79,4 +82,5 @@ class CTextService : public ITfTextInputProcessor, public ITfKeyEventSink {
     // key helpers
     bool MapStrokeKey(WPARAM vk, wchar_t& outStroke) const;
     bool IsDigitKey(WPARAM vk, UINT& outIndex) const;  // 0..9
+    bool MapChineseSymbol(WPARAM vk, std::wstring& outSymbol) const;
 };

@@ -1,6 +1,7 @@
 #include "TextService.h"
 
 #include <cwctype>
+#include <map>
 #include <new>
 #include <sstream>
 
@@ -32,9 +33,17 @@ CTextService::CTextService()
       _enabled(TRUE),
       _shiftPressed(FALSE),
       _otherKeyPressed(FALSE) {
+    OutputDebugStringW(L"[IME] CTextService constructor started\n");
     _candidateWindow = new CCandidateWindow();
     _dictionary.LoadFromFile(CDictionary::GetDefaultDictionaryPath());
     _suggestionDict.LoadFromFile(CSuggestions::GetDefaultSuggestionsPath());
+    bool punctLoaded = _punctuationMap.LoadFromFile(CPunctuation::GetDefaultPunctuationPath());
+
+    std::wstringstream ss;
+    ss << L"[IME] Punctuation loaded: " << (punctLoaded ? L"SUCCESS" : L"FAILED")
+       << L", entries: " << _punctuationMap.GetEntryCount() << L"\n";
+    OutputDebugStringW(ss.str().c_str());
+    OutputDebugStringW(L"[IME] CTextService constructor finished\n");
 }
 
 CTextService::~CTextService() {
@@ -158,11 +167,50 @@ bool CTextService::IsDigitKey(WPARAM wParam, UINT& outIndex) const {
     return false;
 }
 
+bool CTextService::MapChineseSymbol(WPARAM wParam, std::wstring& outSymbol) const {
+    // Convert virtual key code to character
+    BYTE keyboardState[256];
+    GetKeyboardState(keyboardState);
+
+    wchar_t chars[4] = {0};
+    int result = ToUnicodeEx(wParam, MapVirtualKey(wParam, MAPVK_VK_TO_VSC),
+                             keyboardState, chars, 4, 0, GetKeyboardLayout(0));
+
+    if (result <= 0) {
+        std::wstringstream ss;
+        ss << L"[IME] MapChineseSymbol: ToUnicodeEx failed for wParam=0x" << std::hex << wParam << L"\n";
+        OutputDebugStringW(ss.str().c_str());
+        return false;
+    }
+
+    wchar_t asciiChar = chars[0];
+
+    std::wstringstream ss;
+    ss << L"[IME] MapChineseSymbol checking: wParam=0x" << std::hex << wParam
+       << L" (dec=" << std::dec << (int)wParam << L") -> char='" << asciiChar << L"' (0x"
+       << std::hex << (int)asciiChar << L")\n";
+    OutputDebugStringW(ss.str().c_str());
+
+    bool found = _punctuationMap.Lookup(asciiChar, outSymbol);
+
+    if (found) {
+        std::wstringstream ss2;
+        ss2 << L"[IME] MapChineseSymbol FOUND: '" << asciiChar << L"' (vk=0x"
+            << std::hex << wParam << L") -> '" << outSymbol << L"'\n";
+        OutputDebugStringW(ss2.str().c_str());
+    } else {
+        std::wstringstream ss3;
+        ss3 << L"[IME] MapChineseSymbol NOT FOUND: '" << asciiChar << L"' (vk=0x"
+            << std::hex << wParam << L")\n";
+        OutputDebugStringW(ss3.str().c_str());
+    }
+
+    return found;
+}
+
 STDMETHODIMP CTextService::OnTestKeyDown(ITfContext*, WPARAM wParam, LPARAM, BOOL* pfEaten) {
     if (!pfEaten) return E_INVALIDARG;
     *pfEaten = FALSE;
-
-    DebugLog(L"[IME] OnTestKeyDown", wParam);
 
     if (_state == State::DISABLED) return S_OK;
 
@@ -179,17 +227,22 @@ STDMETHODIMP CTextService::OnTestKeyDown(ITfContext*, WPARAM wParam, LPARAM, BOO
         return S_OK;
     }
 
-    // Let through if Shift is held with a non-stroke key (for symbols)
+    UINT digit = 0;
+    wchar_t stroke = 0;
+    std::wstring symbol;
+
+    // Check for symbol substitution first, regardless of Shift state
+    if (MapChineseSymbol(wParam, symbol)) {
+        *pfEaten = TRUE;
+        return S_OK;
+    }
+
+    // Let through if Shift is held with a non-stroke key (and not a symbol)
     if (shiftHeld) {
-        wchar_t stroke = 0;
-        // Only eat the key if it's a stroke key; otherwise let it through for symbols
         if (!MapStrokeKey(wParam, stroke)) {
             return S_OK;
         }
     }
-
-    UINT digit = 0;
-    wchar_t stroke = 0;
     if (MapStrokeKey(wParam, stroke)) {
         *pfEaten = TRUE;
         return S_OK;
@@ -288,6 +341,25 @@ STDMETHODIMP CTextService::OnKeyDown(ITfContext* pContext, WPARAM wParam, LPARAM
 
     // Let through if any non-Shift modifier is held
     if (otherModifier) {
+        return S_OK;
+    }
+
+    // Check for Chinese symbol substitution first, before checking shift
+    std::wstring symbol;
+    if (MapChineseSymbol(wParam, symbol)) {
+        std::wstringstream debugSS2;
+        debugSS2 << L"[IME] Symbol substitution matched: wParam=" << static_cast<wchar_t>(wParam) << L" -> " << symbol << L"\n";
+        OutputDebugStringW(debugSS2.str().c_str());
+        *pfEaten = TRUE;
+        CommitText(pContext, symbol);
+        // Clear state after symbol
+        _ghostPreedit.clear();
+        _preedit.clear();
+        _candidates.clear();
+        _suggestions.clear();
+        _page = 0;
+        _selectedCandidate = 0;
+        UpdateCandidateWindow();
         return S_OK;
     }
 

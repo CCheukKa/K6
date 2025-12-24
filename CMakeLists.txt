@@ -26,6 +26,8 @@ add_library(ChineseIMEHKExample SHARED
     src/Dictionary.h
     src/Suggestions.cpp
     src/Suggestions.h
+    src/Punctuation.cpp
+    src/Punctuation.h
     src/Stroke.h
     src/guid.h
     src/Registration.cpp
@@ -64,6 +66,15 @@ add_custom_command(TARGET ChineseIMEHKExample POST_BUILD
     "${CMAKE_SOURCE_DIR}/data/suggestionsData.txt"
     "$<TARGET_FILE_DIR:ChineseIMEHKExample>/suggestionsData.txt"
     COMMENT "Copying suggestionsData.txt to output directory"
+    VERBATIM
+)
+
+# Copy punctuation file to output directory
+add_custom_command(TARGET ChineseIMEHKExample POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    "${CMAKE_SOURCE_DIR}/data/punctuationData.txt"
+    "$<TARGET_FILE_DIR:ChineseIMEHKExample>/punctuationData.txt"
+    COMMENT "Copying punctuationData.txt to output directory"
     VERBATIM
 )
 
