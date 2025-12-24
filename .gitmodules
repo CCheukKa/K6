@@ -1,0 +1,3 @@
+[submodule "stroke"]
+	path = stroke
+	url = https://github.com/CCheukKa/stroke.git
