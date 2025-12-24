@@ -334,7 +334,7 @@ STDMETHODIMP CTextService::OnKeyDown(ITfContext* pContext, WPARAM wParam, LPARAM
                 *pfEaten = TRUE;
                 if (digit == 0) {
                     // Only enter SELECTING mode if there are candidates
-                    if (!_candidates.empty()) {
+                    if (!_candidates.empty() || !_suggestions.empty()) {
                         _state = State::SELECTING;
                         UpdateCandidateWindow();
                     }
