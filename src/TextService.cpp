@@ -388,7 +388,7 @@ STDMETHODIMP CTextService::OnKeyDown(ITfContext* pContext, WPARAM wParam, LPARAM
                 }
                 return S_OK;
             }
-            if (wParam == VK_ADD) {
+            if (wParam == VK_ADD || wParam == 'm' || wParam == 'M') {
                 debugSS.str(L"");
                 debugSS << L"[IME] SELECTING: VK_ADD matched (wParam=0x" << std::hex << wParam << std::dec << L")";
                 OutputDebugStringW(debugSS.str().c_str());
@@ -398,7 +398,7 @@ STDMETHODIMP CTextService::OnKeyDown(ITfContext* pContext, WPARAM wParam, LPARAM
                 UpdateCandidateWindow();
                 return S_OK;
             }
-            if (wParam == VK_SUBTRACT) {
+            if (wParam == VK_SUBTRACT || wParam == 'n' || wParam == 'N') {
                 debugSS.str(L"");
                 debugSS << L"[IME] SELECTING: VK_SUBTRACT matched (wParam=0x" << std::hex << wParam << std::dec << L")";
                 OutputDebugStringW(debugSS.str().c_str());
@@ -420,7 +420,7 @@ STDMETHODIMP CTextService::OnKeyDown(ITfContext* pContext, WPARAM wParam, LPARAM
             if (wParam == VK_ESCAPE) {
                 OutputDebugStringW(L"[IME] SELECTING: VK_ESCAPE matched\n");
                 *pfEaten = TRUE;
-                _state = State::DISABLED;
+                _state = State::TYPING;
                 _ghostPreedit.clear();
                 _preedit.clear();
                 _candidates.clear();
@@ -433,7 +433,7 @@ STDMETHODIMP CTextService::OnKeyDown(ITfContext* pContext, WPARAM wParam, LPARAM
             if (wParam == VK_DECIMAL) {
                 OutputDebugStringW(L"[IME] SELECTING: VK_DECIMAL (keypad .) matched, treating as escape\n");
                 *pfEaten = TRUE;
-                _state = State::DISABLED;
+                _state = State::TYPING;
                 _ghostPreedit.clear();
                 _preedit.clear();
                 _candidates.clear();
