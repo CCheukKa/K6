@@ -1,5 +1,6 @@
 #include "TextService.h"
 
+#include <cwctype>
 #include <new>
 #include <sstream>
 
@@ -19,9 +20,20 @@ static void DebugLog(const wchar_t* msg, WPARAM wParam) {
 }
 
 CTextService::CTextService()
-    : _refCount(1), _threadMgr(nullptr), _clientId(TF_CLIENTID_NULL), _keystrokeMgr(nullptr), _candidateWindow(nullptr), _selectedCandidate(0), _enabled(TRUE), _shiftPressed(FALSE), _otherKeyPressed(FALSE) {
+    : _refCount(1),
+      _threadMgr(nullptr),
+      _clientId(TF_CLIENTID_NULL),
+      _keystrokeMgr(nullptr),
+      _candidateWindow(nullptr),
+      _selectedCandidate(0),
+      _page(0),
+      _state(State::TYPING),
+      _enabled(TRUE),
+      _shiftPressed(FALSE),
+      _otherKeyPressed(FALSE) {
     _candidateWindow = new CCandidateWindow();
     _dictionary.LoadFromFile(CDictionary::GetDefaultDictionaryPath());
+    _suggestionDict.LoadFromFile(CSuggestions::GetDefaultSuggestionsPath());
 }
 
 CTextService::~CTextService() {
@@ -99,144 +111,296 @@ STDMETHODIMP CTextService::OnSetFocus(BOOL fForeground) {
     return S_OK;
 }
 
+bool CTextService::MapStrokeKey(WPARAM wParam, wchar_t& outStroke) const {
+    if (wParam == 'O' || wParam == 'o' || wParam == VK_NUMPAD9) {
+        outStroke = Stroke::POSITIVE_DIAGONAL[0];
+        return true;
+    }
+    if (wParam == 'J' || wParam == 'j' || wParam == VK_NUMPAD4) {
+        outStroke = Stroke::NEGATIVE_DIAGONAL[0];
+        return true;
+    }
+    if (wParam == 'I' || wParam == 'i' || wParam == VK_NUMPAD8) {
+        outStroke = Stroke::VERTICAL[0];
+        return true;
+    }
+    if (wParam == 'U' || wParam == 'u' || wParam == VK_NUMPAD7) {
+        outStroke = Stroke::HORIZONTAL[0];
+        return true;
+    }
+    if (wParam == 'K' || wParam == 'k' || wParam == VK_NUMPAD5) {
+        outStroke = Stroke::COMPOUND[0];
+        return true;
+    }
+    if (wParam == 'L' || wParam == 'l' || wParam == VK_NUMPAD6) {
+        outStroke = Stroke::WILDCARD[0];
+        return true;
+    }
+    return false;
+}
+
+bool CTextService::IsDigitKey(WPARAM wParam, UINT& outIndex) const {
+    if (wParam >= '0' && wParam <= '9') {
+        outIndex = static_cast<UINT>(wParam - '0');
+        return true;
+    }
+    if (wParam >= VK_NUMPAD0 && wParam <= VK_NUMPAD9) {
+        outIndex = static_cast<UINT>(wParam - VK_NUMPAD0);
+        return true;
+    }
+    return false;
+}
+
 STDMETHODIMP CTextService::OnTestKeyDown(ITfContext*, WPARAM wParam, LPARAM, BOOL* pfEaten) {
     if (!pfEaten) return E_INVALIDARG;
     *pfEaten = FALSE;
 
     DebugLog(L"[IME] OnTestKeyDown", wParam);
 
-    // When IME is disabled, don't eat any keys
-    if (!_enabled) {
+    if (_state == State::DISABLED) return S_OK;
+
+    UINT digit = 0;
+    wchar_t stroke = 0;
+    if (MapStrokeKey(wParam, stroke)) {
+        *pfEaten = TRUE;
+        return S_OK;
+    }
+    if (IsDigitKey(wParam, digit)) {
+        if (_state == State::SELECTING && digit >= 1 && digit <= 9) {
+            *pfEaten = TRUE;
+            return S_OK;
+        }
+        if (digit == 0) {
+            *pfEaten = TRUE;
+            return S_OK;
+        }
+    }
+    if (wParam == VK_BACK || wParam == VK_ESCAPE) {
+        *pfEaten = TRUE;
+        return S_OK;
+    }
+    if (wParam == VK_ADD || wParam == VK_SUBTRACT) {
+        *pfEaten = TRUE;
+        return S_OK;
+    }
+    if (wParam == VK_RETURN) {
+        *pfEaten = TRUE;
+        return S_OK;
+    }
+    if (wParam == 'M' || wParam == 'm' || wParam == 'N' || wParam == 'n') {
+        *pfEaten = TRUE;
         return S_OK;
     }
 
-    // Letters always eaten when enabled
-    if ((wParam >= 'A' && wParam <= 'Z') || (wParam >= 'a' && wParam <= 'z')) {
-        *pfEaten = TRUE;
-    }
-    // Number keys for candidate selection
-    else if (wParam >= '1' && wParam <= '9' && !_candidates.empty()) {
-        *pfEaten = TRUE;
-    }
-    // Space/Backspace/Escape when composing
-    else if ((wParam == VK_SPACE || wParam == VK_BACK || wParam == VK_ESCAPE) && !_preedit.empty()) {
-        *pfEaten = TRUE;
-    }
-    // Arrow keys when candidates shown
-    else if ((wParam == VK_UP || wParam == VK_DOWN) && !_candidates.empty()) {
-        *pfEaten = TRUE;
-    }
     return S_OK;
 }
 
-STDMETHODIMP CTextService::OnTestKeyUp(ITfContext*, WPARAM wParam, LPARAM, BOOL* pfEaten) {
+STDMETHODIMP CTextService::OnTestKeyUp(ITfContext*, WPARAM, LPARAM, BOOL* pfEaten) {
     *pfEaten = FALSE;
-    DebugLog(L"[IME] OnTestKeyUp", wParam);
     return S_OK;
+}
+
+void CTextService::UpdateQueryResults() {
+    if (_preedit.empty()) {
+        _candidates.clear();
+        // keep suggestions (ghost mode)
+    } else {
+        _candidates = _dictionary.LookupRegex(_preedit);
+        _suggestions.clear();
+    }
+
+    // Reset selection/page if overflow
+    const auto& list = _candidates.empty() ? _suggestions : _candidates;
+    if (_page * 9 >= list.size()) {
+        _page = 0;
+        _selectedCandidate = 0;
+    }
+
+    UpdateCandidateWindow();
+}
+
+void CTextService::SetGhostFromCharacter(const std::wstring& ch) {
+    if (ch.empty()) {
+        _ghostPreedit.clear();
+        return;
+    }
+    std::wstring key(1, ch.back());
+    _ghostPreedit = _dictionary.GetRandomStrokeForCharacter(key);
+}
+
+void CTextService::ShowSuggestionsForCharacter(const std::wstring& ch) {
+    if (ch.empty()) {
+        _suggestions.clear();
+        return;
+    }
+    std::wstring key(1, ch.back());
+    _suggestions = _suggestionDict.Lookup(key);
 }
 
 STDMETHODIMP CTextService::OnKeyDown(ITfContext* pContext, WPARAM wParam, LPARAM, BOOL* pfEaten) {
-    DebugLog(L"[IME] OnKeyDown", wParam);
     if (!pfEaten) return E_INVALIDARG;
     *pfEaten = FALSE;
     if (!pContext) return S_OK;
 
-    // Track Shift key state
+    DebugLog(L"[IME] OnKeyDown", wParam);
+
+    // Keep legacy shift tracking variables but don't toggle on them
     if (wParam == VK_SHIFT || wParam == VK_LSHIFT || wParam == VK_RSHIFT) {
-        DebugLog(L"[IME] Shift pressed - tracking");
         _shiftPressed = TRUE;
         _otherKeyPressed = FALSE;
         return S_OK;
     }
+    if (_shiftPressed) _otherKeyPressed = TRUE;
 
-    // Any other key pressed while Shift is down
-    if (_shiftPressed) {
-        _otherKeyPressed = TRUE;
-    }
-
-    // When IME is disabled, pass through all keys
-    if (!_enabled) {
+    if (_state == State::DISABLED || !_enabled) {
         return S_OK;
     }
 
-    // Letter keys - accumulate preedit
-    if ((wParam >= 'A' && wParam <= 'Z') || (wParam >= 'a' && wParam <= 'z')) {
-        *pfEaten = TRUE;
-        _preedit.push_back(static_cast<wchar_t>(towlower(static_cast<wchar_t>(wParam))));
-        _candidates = _dictionary.Lookup(_preedit);
-        _selectedCandidate = 0;
-        UpdateCandidateWindow();
-    }
-    // Number keys - select candidate
-    else if (wParam >= '1' && wParam <= '9' && !_candidates.empty()) {
-        *pfEaten = TRUE;
-        UINT idx = static_cast<UINT>(wParam - '1');
-        if (idx < _candidates.size()) {
-            CommitText(pContext, _candidates[idx]);
-            Reset();
+    wchar_t stroke = 0;
+    UINT digit = 0;
+
+    switch (_state) {
+        case State::TYPING: {
+            if (MapStrokeKey(wParam, stroke)) {
+                *pfEaten = TRUE;
+                _ghostPreedit.clear();
+                _preedit.push_back(stroke);
+                _page = 0;
+                _selectedCandidate = 0;
+                UpdateQueryResults();
+                return S_OK;
+            }
+            if (wParam == VK_BACK) {
+                *pfEaten = TRUE;
+                if (!_preedit.empty()) {
+                    _preedit.pop_back();
+                    _page = 0;
+                    _selectedCandidate = 0;
+                } else {
+                    _ghostPreedit.clear();
+                    _suggestions.clear();
+                }
+                UpdateQueryResults();
+                return S_OK;
+            }
+            if (wParam == VK_ESCAPE) {
+                *pfEaten = TRUE;
+                _ghostPreedit.clear();
+                _preedit.clear();
+                _candidates.clear();
+                _suggestions.clear();
+                _page = 0;
+                _selectedCandidate = 0;
+                UpdateCandidateWindow();
+                return S_OK;
+            }
+            if (wParam == VK_RETURN) {
+                *pfEaten = TRUE;
+                const auto& list = _candidates.empty() ? _suggestions : _candidates;
+                if (!list.empty()) {
+                    const std::wstring chosen = list[_page * 9 + 0];
+                    CommitText(pContext, chosen);
+                    SetGhostFromCharacter(chosen);
+                    _preedit.clear();
+                    _candidates.clear();
+                    _page = 0;
+                    _selectedCandidate = 0;
+                    ShowSuggestionsForCharacter(chosen);
+                    UpdateCandidateWindow();
+                }
+                return S_OK;
+            }
+            if (IsDigitKey(wParam, digit)) {
+                *pfEaten = TRUE;
+                if (digit == 0) {
+                    _state = State::SELECTING;
+                    UpdateCandidateWindow();
+                }
+                return S_OK;
+            }
+            if (wParam == VK_ADD || wParam == 'M' || wParam == 'm') {
+                *pfEaten = TRUE;
+                _page += 1;
+                UpdateCandidateWindow();
+                return S_OK;
+            }
+            if (wParam == VK_SUBTRACT || wParam == 'N' || wParam == 'n') {
+                *pfEaten = TRUE;
+                if (_page > 0) _page -= 1;
+                UpdateCandidateWindow();
+                return S_OK;
+            }
+            break;
         }
-    }
-    // Backspace
-    else if (wParam == VK_BACK && !_preedit.empty()) {
-        *pfEaten = TRUE;
-        _preedit.pop_back();
-        if (_preedit.empty()) {
-            Reset();
-        } else {
-            _candidates = _dictionary.Lookup(_preedit);
-            _selectedCandidate = 0;
-            UpdateCandidateWindow();
+        case State::SELECTING: {
+            if (IsDigitKey(wParam, digit)) {
+                *pfEaten = TRUE;
+                if (digit == 0) {
+                    _state = State::TYPING;
+                    UpdateCandidateWindow();
+                    return S_OK;
+                }
+                if (digit >= 1 && digit <= 9) {
+                    const auto& list = _candidates.empty() ? _suggestions : _candidates;
+                    UINT idx = (_page * 9) + (digit - 1);
+                    if (idx < list.size()) {
+                        const std::wstring chosen = list[idx];
+                        CommitText(pContext, chosen);
+                        SetGhostFromCharacter(chosen);
+                        _preedit.clear();
+                        _candidates.clear();
+                        _page = 0;
+                        _selectedCandidate = 0;
+                        _state = State::TYPING;
+                        ShowSuggestionsForCharacter(chosen);
+                        UpdateCandidateWindow();
+                    }
+                }
+                return S_OK;
+            }
+            if (wParam == VK_ADD || wParam == 'M' || wParam == 'm') {
+                *pfEaten = TRUE;
+                _page += 1;
+                UpdateCandidateWindow();
+                return S_OK;
+            }
+            if (wParam == VK_SUBTRACT || wParam == 'N' || wParam == 'n') {
+                *pfEaten = TRUE;
+                if (_page > 0) _page -= 1;
+                UpdateCandidateWindow();
+                return S_OK;
+            }
+            if (wParam == VK_ESCAPE) {
+                *pfEaten = TRUE;
+                _state = State::TYPING;
+                UpdateCandidateWindow();
+                return S_OK;
+            }
+            break;
         }
-    }
-    // Escape - cancel
-    else if (wParam == VK_ESCAPE && !_preedit.empty()) {
-        *pfEaten = TRUE;
-        Reset();
-    }
-    // Space - commit selected or first candidate
-    else if (wParam == VK_SPACE && !_preedit.empty()) {
-        *pfEaten = TRUE;
-        if (!_candidates.empty()) {
-            CommitText(pContext, _candidates[_selectedCandidate]);
-        } else {
-            CommitText(pContext, _preedit);
-        }
-        Reset();
-    }
-    // Arrow keys - navigate candidates
-    else if (wParam == VK_DOWN && !_candidates.empty()) {
-        *pfEaten = TRUE;
-        _selectedCandidate = (_selectedCandidate + 1) % _candidates.size();
-        _candidateWindow->SetSelection(_selectedCandidate);
-    } else if (wParam == VK_UP && !_candidates.empty()) {
-        *pfEaten = TRUE;
-        _selectedCandidate = (_selectedCandidate == 0) ? _candidates.size() - 1 : _selectedCandidate - 1;
-        _candidateWindow->SetSelection(_selectedCandidate);
+        default:
+            break;
     }
 
     return S_OK;
 }
 
 STDMETHODIMP CTextService::OnKeyUp(ITfContext*, WPARAM wParam, LPARAM, BOOL* pfEaten) {
-    DebugLog(L"[IME] OnKeyUp", wParam);
+    if (!pfEaten) return E_INVALIDARG;
     *pfEaten = FALSE;
-
-    // Toggle IME on Shift release if no other key was pressed
     if (wParam == VK_SHIFT || wParam == VK_LSHIFT || wParam == VK_RSHIFT) {
-        DebugLog(L"[IME] Shift released");
         if (_shiftPressed && !_otherKeyPressed) {
-            DebugLog(L"[IME] TOGGLING!");
+            // Toggle IME on lone Shift press
             ToggleEnabled();
+            *pfEaten = TRUE;
         }
         _shiftPressed = FALSE;
         _otherKeyPressed = FALSE;
     }
-
     return S_OK;
 }
 
-STDMETHODIMP CTextService::OnPreservedKey(ITfContext*, REFGUID rguid, BOOL* pfEaten) {
-    DebugLog(L"[IME] OnPreservedKey");
+STDMETHODIMP CTextService::OnPreservedKey(ITfContext*, REFGUID, BOOL* pfEaten) {
     *pfEaten = FALSE;
     return S_OK;
 }
@@ -251,9 +415,19 @@ void CTextService::CommitText(ITfContext* pContext, const std::wstring& text) {
 }
 
 void CTextService::UpdateCandidateWindow() {
+    {
+        std::wstringstream ss;
+        ss << L"[IME] UpdateCandidateWindow preedit='" << _preedit << L"' ghost='" << _ghostPreedit
+           << L"' cand=" << _candidates.size() << L" sugg=" << _suggestions.size() << L" page=" << _page;
+        OutputDebugStringW(ss.str().c_str());
+        OutputDebugStringW(L"\n");
+    }
+
     _candidateWindow->SetPreedit(_preedit);
-    _candidateWindow->SetCandidates(_candidates);
+    _candidateWindow->SetGhostPreedit(_ghostPreedit);
+    _candidateWindow->SetCandidates(_candidates.empty() ? _suggestions : _candidates);
     _candidateWindow->SetSelection(_selectedCandidate);
+    _candidateWindow->SetPage(_page);
 
     POINT pt;
     GetCaretPos(&pt);
@@ -263,15 +437,19 @@ void CTextService::UpdateCandidateWindow() {
 
 void CTextService::Reset() {
     _preedit.clear();
+    _ghostPreedit.clear();
     _candidates.clear();
+    _suggestions.clear();
     _selectedCandidate = 0;
+    _page = 0;
+    _state = _enabled ? State::TYPING : State::DISABLED;
     _candidateWindow->Hide();
 }
 
 void CTextService::ToggleEnabled() {
     _enabled = !_enabled;
+    _state = _enabled ? State::TYPING : State::DISABLED;
     if (!_enabled) {
-        // When disabling, clear any active composition
         Reset();
     }
 }

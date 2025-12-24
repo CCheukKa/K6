@@ -7,6 +7,10 @@ set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
 add_definitions(-DUNICODE -D_UNICODE)
 
+if (MSVC)
+    add_compile_options(/utf-8)
+endif()
+
 # Build a COM in-proc server (DLL)
 add_library(ChineseIMEHKExample SHARED
     src/dllmain.cpp
@@ -20,6 +24,9 @@ add_library(ChineseIMEHKExample SHARED
     src/CandidateWindow.h
     src/Dictionary.cpp
     src/Dictionary.h
+    src/Suggestions.cpp
+    src/Suggestions.h
+    src/Stroke.h
     src/guid.h
     src/Registration.cpp
     src/Registration.h
@@ -46,11 +53,21 @@ set_target_properties(ChineseIMEHKExample PROPERTIES
 # Copy dictionary file to output directory
 add_custom_command(TARGET ChineseIMEHKExample POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
-    "${CMAKE_SOURCE_DIR}/data/dictionary.txt"
-    "$<TARGET_FILE_DIR:ChineseIMEHKExample>/dictionary.txt"
-    COMMENT "Copying dictionary.txt to output directory"
+    "${CMAKE_SOURCE_DIR}/data/strokeData.txt"
+    "$<TARGET_FILE_DIR:ChineseIMEHKExample>/strokeData.txt"
+    COMMENT "Copying strokeData.txt to output directory"
+)
+
+# Copy suggestions file if present
+add_custom_command(TARGET ChineseIMEHKExample POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    "${CMAKE_SOURCE_DIR}/data/suggestionsData.txt"
+    "$<TARGET_FILE_DIR:ChineseIMEHKExample>/suggestionsData.txt"
+    COMMENT "Copying suggestionsData.txt to output directory"
+    VERBATIM
 )
 
 # Install step (optional)
 install(TARGETS ChineseIMEHKExample DESTINATION bin)
-install(FILES data/dictionary.txt DESTINATION bin)
+install(FILES data/strokeData.txt DESTINATION bin)
+install(FILES data/suggestionsData.txt DESTINATION bin OPTIONAL)

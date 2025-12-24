@@ -11,7 +11,9 @@ class CCandidateWindow {
 
     void SetCandidates(const std::vector<std::wstring>& candidates);
     void SetPreedit(const std::wstring& preedit);
+    void SetGhostPreedit(const std::wstring& ghostPreedit);
     void SetSelection(UINT index);
+    void SetPage(UINT page);
     void Show();
     void Hide();
     void UpdatePosition(POINT pt);
@@ -26,7 +28,9 @@ class CCandidateWindow {
     BOOL _shown;
     std::vector<std::wstring> _candidates;
     std::wstring _preedit;
+    std::wstring _ghostPreedit;
     UINT _selection;
+    UINT _page;
 
     static const UINT CANDIDATES_PER_PAGE = 9;
     static const int PADDING = 8;

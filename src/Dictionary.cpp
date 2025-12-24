@@ -3,7 +3,11 @@
 #include <windows.h>
 
 #include <fstream>
+#include <regex>
+#include <set>
 #include <sstream>
+
+#include "Stroke.h"
 
 CDictionary::CDictionary() {
 }
@@ -19,6 +23,63 @@ std::vector<std::wstring> CDictionary::Lookup(const std::wstring& code) const {
     return std::vector<std::wstring>();
 }
 
+std::vector<std::wstring> CDictionary::LookupRegex(const std::wstring& pattern) const {
+    if (pattern.empty()) return {};
+    auto cacheIt = _regexCache.find(pattern);
+    if (cacheIt != _regexCache.end()) return cacheIt->second;
+
+    // Build anchored regex and replace wildcard ＊ with '.'
+    std::wstring rxText = L"^";
+    rxText.reserve(pattern.size() + 1);
+    for (wchar_t ch : pattern) {
+        if (ch == Stroke::WILDCARD[0]) {
+            rxText.push_back(L'.');
+        } else {
+            rxText.push_back(ch);
+        }
+    }
+
+    std::wregex rx(rxText);
+    std::vector<std::wstring> out;
+    std::set<std::wstring> seen;
+
+    // Iterate in insertion order instead of map order
+    for (const auto& entry : _insertionOrder) {
+        const std::wstring& code = entry.first;
+        const std::wstring& character = entry.second;
+
+        if (std::regex_search(code, rx)) {
+            if (seen.insert(character).second) {
+                out.push_back(character);
+            }
+        }
+    }
+
+    _regexCache.emplace(pattern, out);
+    return out;
+}
+
+std::vector<std::wstring> CDictionary::GetCodesForCharacter(const std::wstring& character) const {
+    std::vector<std::wstring> codes;
+    for (const auto& kv : _dictionary) {
+        for (const auto& ch : kv.second) {
+            if (ch == character) {
+                codes.push_back(kv.first);
+                break;
+            }
+        }
+    }
+    return codes;
+}
+
+// TODO: add a canonical way to select a stroke sequence
+std::wstring CDictionary::GetRandomStrokeForCharacter(const std::wstring& character) const {
+    auto codes = GetCodesForCharacter(character);
+    if (codes.empty()) return L"";
+    size_t idx = static_cast<size_t>(rand()) % codes.size();
+    return codes[idx];
+}
+
 std::wstring CDictionary::GetDefaultDictionaryPath() {
     wchar_t dllPath[MAX_PATH];
     HMODULE hModule = nullptr;
@@ -31,10 +92,10 @@ std::wstring CDictionary::GetDefaultDictionaryPath() {
         std::wstring path(dllPath);
         size_t lastSlash = path.find_last_of(L"\\/");
         if (lastSlash != std::wstring::npos) {
-            return path.substr(0, lastSlash + 1) + L"dictionary.txt";
+            return path.substr(0, lastSlash + 1) + L"strokeData.txt";
         }
     }
-    return L"dictionary.txt";
+    return L"strokeData.txt";
 }
 
 // Convert UTF-8 string to wide string
@@ -51,6 +112,8 @@ static std::wstring Utf8ToWide(const std::string& utf8) {
 
 bool CDictionary::LoadFromFile(const std::wstring& path) {
     _dictionary.clear();
+    _insertionOrder.clear();
+    _regexCache.clear();
 
     // Open file as UTF-8
     std::ifstream file(path, std::ios::binary);
@@ -108,4 +171,5 @@ bool CDictionary::LoadFromFile(const std::wstring& path) {
 
 void CDictionary::AddEntry(const std::wstring& code, const std::wstring& character) {
     _dictionary[code].push_back(character);
+    _insertionOrder.push_back({code, character});
 }

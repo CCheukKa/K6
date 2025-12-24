@@ -3,7 +3,7 @@
 static const wchar_t* CANDIDATE_WINDOW_CLASS = L"ChineseIMECandidateWindow";
 
 CCandidateWindow::CCandidateWindow()
-    : _hwnd(nullptr), _shown(FALSE), _selection(0) {
+    : _hwnd(nullptr), _shown(FALSE), _selection(0), _page(0) {
 }
 
 CCandidateWindow::~CCandidateWindow() {
@@ -15,6 +15,7 @@ CCandidateWindow::~CCandidateWindow() {
 void CCandidateWindow::SetCandidates(const std::vector<std::wstring>& candidates) {
     _candidates = candidates;
     _selection = 0;
+    _page = 0;
 
     if (_hwnd) {
         RECT rc = CalculateWindowSize();
@@ -30,6 +31,13 @@ void CCandidateWindow::SetPreedit(const std::wstring& preedit) {
     }
 }
 
+void CCandidateWindow::SetGhostPreedit(const std::wstring& ghostPreedit) {
+    _ghostPreedit = ghostPreedit;
+    if (_hwnd) {
+        InvalidateRect(_hwnd, nullptr, TRUE);
+    }
+}
+
 void CCandidateWindow::SetSelection(UINT index) {
     if (index < _candidates.size()) {
         _selection = index;
@@ -39,8 +47,22 @@ void CCandidateWindow::SetSelection(UINT index) {
     }
 }
 
+void CCandidateWindow::SetPage(UINT page) {
+    _page = page;
+    // Clamp selection to visible range
+    UINT total = static_cast<UINT>(_candidates.size());
+    UINT start = _page * CANDIDATES_PER_PAGE;
+    UINT count = (start < total) ? min(CANDIDATES_PER_PAGE, total - start) : 0;
+    if (_selection >= count) _selection = (count == 0 ? 0 : count - 1);
+    if (_hwnd) {
+        RECT rc = CalculateWindowSize();
+        SetWindowPos(_hwnd, HWND_TOPMOST, 0, 0, rc.right, rc.bottom, SWP_NOMOVE | SWP_NOACTIVATE);
+        InvalidateRect(_hwnd, nullptr, TRUE);
+    }
+}
+
 void CCandidateWindow::Show() {
-    if (_candidates.empty() && _preedit.empty()) {
+    if (_candidates.empty() && _preedit.empty() && _ghostPreedit.empty()) {
         Hide();
         return;
     }
@@ -125,36 +147,47 @@ void CCandidateWindow::Paint(HDC hdc) {
 
     int y = PADDING;
 
-    // Preedit
-    if (!_preedit.empty()) {
+    // Preedit or ghost preedit
+    if (!_preedit.empty() || !_ghostPreedit.empty()) {
         RECT preeditRect = {PADDING, y, rc.right - PADDING, y + LINE_HEIGHT};
-        SetTextColor(hdc, RGB(0, 0, 255));
-        wchar_t buf[256];
-        swprintf_s(buf, L"[%s]", _preedit.c_str());
-        DrawText(hdc, buf, -1, &preeditRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+        if (!_preedit.empty()) {
+            SetTextColor(hdc, RGB(0, 0, 255));
+            wchar_t buf[256];
+            swprintf_s(buf, L"%s", _preedit.c_str());
+            DrawText(hdc, buf, -1, &preeditRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+        } else if (!_ghostPreedit.empty()) {
+            SetTextColor(hdc, RGB(128, 128, 128));
+            wchar_t buf[256];
+            swprintf_s(buf, L"%s", _ghostPreedit.c_str());
+            DrawText(hdc, buf, -1, &preeditRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+        }
         y += LINE_HEIGHT;
         MoveToEx(hdc, PADDING, y, nullptr);
         LineTo(hdc, rc.right - PADDING, y);
         y += 4;
     }
 
-    // Candidates
-    UINT count = min(CANDIDATES_PER_PAGE, static_cast<UINT>(_candidates.size()));
-    for (UINT i = 0; i < count; i++) {
-        RECT itemRect = {PADDING, y + i * LINE_HEIGHT, rc.right - PADDING, y + (i + 1) * LINE_HEIGHT};
+    // Candidates (paged)
+    UINT total = static_cast<UINT>(_candidates.size());
+    UINT start = _page * CANDIDATES_PER_PAGE;
+    if (start < total) {
+        UINT count = min(CANDIDATES_PER_PAGE, total - start);
+        for (UINT i = 0; i < count; i++) {
+            RECT itemRect = {PADDING, y + (int)i * LINE_HEIGHT, rc.right - PADDING, y + (int)(i + 1) * LINE_HEIGHT};
 
-        if (i == _selection) {
-            HBRUSH hSelBrush = CreateSolidBrush(RGB(0, 120, 215));
-            FillRect(hdc, &itemRect, hSelBrush);
-            DeleteObject(hSelBrush);
-            SetTextColor(hdc, RGB(255, 255, 255));
-        } else {
-            SetTextColor(hdc, RGB(0, 0, 0));
+            if (i == _selection) {
+                HBRUSH hSelBrush = CreateSolidBrush(RGB(0, 120, 215));
+                FillRect(hdc, &itemRect, hSelBrush);
+                DeleteObject(hSelBrush);
+                SetTextColor(hdc, RGB(255, 255, 255));
+            } else {
+                SetTextColor(hdc, RGB(0, 0, 0));
+            }
+
+            wchar_t buf[256];
+            swprintf_s(buf, L"%d. %s", i + 1, _candidates[start + i].c_str());
+            DrawText(hdc, buf, -1, &itemRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
         }
-
-        wchar_t buf[256];
-        swprintf_s(buf, L"%d. %s", i + 1, _candidates[i].c_str());
-        DrawText(hdc, buf, -1, &itemRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
     }
 
     SelectObject(hdc, hOldFont);
@@ -180,8 +213,10 @@ void CCandidateWindow::CreateWindowIfNeeded() {
 }
 
 RECT CCandidateWindow::CalculateWindowSize() {
-    UINT count = min(CANDIDATES_PER_PAGE, static_cast<UINT>(_candidates.size()));
-    int height = PADDING * 2 + count * LINE_HEIGHT;
-    if (!_preedit.empty()) height += LINE_HEIGHT + 4;
+    UINT total = static_cast<UINT>(_candidates.size());
+    UINT start = _page * CANDIDATES_PER_PAGE;
+    UINT count = (start < total) ? min(CANDIDATES_PER_PAGE, total - start) : 0;
+    int height = PADDING * 2 + (int)count * LINE_HEIGHT;
+    if (!_preedit.empty() || !_ghostPreedit.empty()) height += LINE_HEIGHT + 4;
     return {0, 0, MIN_WIDTH, height};
 }

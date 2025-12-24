@@ -7,6 +7,8 @@
 
 #include "CandidateWindow.h"
 #include "Dictionary.h"
+#include "Stroke.h"
+#include "Suggestions.h"
 #include "guid.h"
 
 class CTextService : public ITfTextInputProcessor, public ITfKeyEventSink {
@@ -36,23 +38,44 @@ class CTextService : public ITfTextInputProcessor, public ITfKeyEventSink {
     TfClientId GetClientId() const { return _clientId; }
 
    private:
+    enum class State {
+        DISABLED,
+        TYPING,
+        SELECTING
+    };
+
     LONG _refCount;
     ITfThreadMgr* _threadMgr;
     TfClientId _clientId;
     ITfKeystrokeMgr* _keystrokeMgr;
 
-    std::wstring _preedit;
-    std::vector<std::wstring> _candidates;
-    UINT _selectedCandidate;
-    BOOL _enabled;          // IME on/off state
-    BOOL _shiftPressed;     // Track if Shift was pressed alone
-    BOOL _otherKeyPressed;  // Track if other key was pressed during Shift
+    // Query / selection state
+    std::wstring _preedit;                   // current query strokes
+    std::wstring _ghostPreedit;              // ghost strokes after commit
+    std::vector<std::wstring> _candidates;   // character results
+    std::vector<std::wstring> _suggestions;  // suggestion results
+    UINT _selectedCandidate;                 // index in current page [0..8]
+    UINT _page;                              // page for candidates/suggestions
+    State _state;
+    BOOL _enabled;          // overall IME enabled
+    BOOL _shiftPressed;     // track Shift held for toggle
+    BOOL _otherKeyPressed;  // any other key pressed while Shift is down
 
     CCandidateWindow* _candidateWindow;
     CDictionary _dictionary;
+    CSuggestions _suggestionDict;
 
     void CommitText(ITfContext* pContext, const std::wstring& text);
     void UpdateCandidateWindow();
     void Reset();
     void ToggleEnabled();
+
+    // Query update helpers
+    void UpdateQueryResults();
+    void SetGhostFromCharacter(const std::wstring& ch);
+    void ShowSuggestionsForCharacter(const std::wstring& ch);
+
+    // key helpers
+    bool MapStrokeKey(WPARAM vk, wchar_t& outStroke) const;
+    bool IsDigitKey(WPARAM vk, UINT& outIndex) const;  // 0..9
 };
