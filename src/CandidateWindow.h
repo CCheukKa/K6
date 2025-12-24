@@ -37,7 +37,7 @@ class CCandidateWindow {
     CTextService::State _state;
 
     static const UINT CANDIDATES_PER_PAGE = 9;
-    static const int PADDING = 8;
-    static const int LINE_HEIGHT = 24;
+    static const int PADDING = 6;
+    static const int LINE_HEIGHT = 26;
     static const int MIN_WIDTH = 200;
 };

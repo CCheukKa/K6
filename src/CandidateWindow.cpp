@@ -142,8 +142,8 @@ void CCandidateWindow::Paint(HDC hdc) {
     SelectObject(hdc, hOldPen);
     DeleteObject(hPen);
 
-    // Font (bold for visibility)
-    HFONT hFont = CreateFont(18, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+    // Font (bold, slightly larger for readability)
+    HFONT hFont = CreateFont(22, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
                              DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                              CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Microsoft JhengHei");
     HFONT hOldFont = (HFONT)SelectObject(hdc, hFont);
@@ -168,7 +168,6 @@ void CCandidateWindow::Paint(HDC hdc) {
         y += LINE_HEIGHT;
         MoveToEx(hdc, PADDING, y, nullptr);
         LineTo(hdc, rc.right - PADDING, y);
-        y += 4;
     }
 
     // Candidates (paged)
