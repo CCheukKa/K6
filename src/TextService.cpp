@@ -7,7 +7,7 @@
 CTextService::CTextService()
     : _refCount(1), _threadMgr(nullptr), _clientId(TF_CLIENTID_NULL), _keystrokeMgr(nullptr), _candidateWindow(nullptr), _selectedCandidate(0) {
     _candidateWindow = new CCandidateWindow();
-    _dictionary.Initialize();
+    _dictionary.LoadFromFile(CDictionary::GetDefaultDictionaryPath());
 }
 
 CTextService::~CTextService() {

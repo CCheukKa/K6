@@ -43,5 +43,14 @@ set_target_properties(ChineseIMEHKExample PROPERTIES
     OUTPUT_NAME "ChineseIMEHKExample"
 )
 
+# Copy dictionary file to output directory
+add_custom_command(TARGET ChineseIMEHKExample POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    "${CMAKE_SOURCE_DIR}/data/dictionary.txt"
+    "$<TARGET_FILE_DIR:ChineseIMEHKExample>/dictionary.txt"
+    COMMENT "Copying dictionary.txt to output directory"
+)
+
 # Install step (optional)
 install(TARGETS ChineseIMEHKExample DESTINATION bin)
+install(FILES data/dictionary.txt DESTINATION bin)
