@@ -188,15 +188,15 @@ void CCandidateWindow::Paint(HDC hdc) {
             RECT numRect = itemRect;
             numRect.right = numRect.left + numSize.cx + 20;  // small padding after the number
 
-            // Number color: gray when unselected, white when selected
+            // Number color
             SetTextColor(hdc, (_state == CTextService::State::SELECTING) ? RGB(96, 96, 96) : RGB(200, 200, 200));
             DrawText(hdc, numBuf, -1, &numRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
 
             RECT candRect = itemRect;
             candRect.left = numRect.right;
 
-            // Candidate color: follow selection (white on highlight, black otherwise)
-            SetTextColor(hdc, (i == _selection) ? RGB(255, 255, 255) : RGB(0, 0, 0));
+            // Candidate color
+            SetTextColor(hdc, RGB(0, 0, 0));
             DrawText(hdc, _candidates[start + i].c_str(), -1, &candRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
         }
     }
