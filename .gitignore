@@ -1,0 +1,54 @@
+# CMake
+CMakeLists.txt.user
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+
+# Build directories
+build/
+cmake-build-*/
+out/
+
+# Visual Studio
+.vs/
+.vscode/
+*.sln
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.sln.DotSettings
+
+# Build outputs
+*.o
+*.obj
+*.a
+*.lib
+*.dll
+*.exe
+*.exp
+*.pdb
+*.ilk
+*.manifest
+*.res
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+*.swp
+*~
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+*.code-workspace
+
+# Dependencies (if using vcpkg or conan)
+vcpkg_installed/
+conan/
+
+# OS files
+Thumbs.db
+.DS_Store
