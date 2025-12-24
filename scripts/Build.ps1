@@ -32,7 +32,7 @@ Write-Host "Building..." -ForegroundColor Yellow
 cmake --build $BuildDir --config $Configuration
 
 if ($LASTEXITCODE -eq 0) {
-    $DllPath = Join-Path $BuildDir "$Configuration\ChineseIMEHKExample.dll"
+    $DllPath = Join-Path $BuildDir "$Configuration\K6.dll"
     Write-Host "`nBuild successful!" -ForegroundColor Green
     Write-Host "Output: $DllPath" -ForegroundColor Gray
 } else {

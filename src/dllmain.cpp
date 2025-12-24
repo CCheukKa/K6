@@ -30,7 +30,7 @@ extern "C" HRESULT __stdcall DllGetClassObject(REFCLSID rclsid, REFIID riid, voi
     if (!ppvObj) return E_INVALIDARG;
     *ppvObj = nullptr;
 
-    if (rclsid != CLSID_ChineseIMEHKExample)
+    if (rclsid != CLSID_K6)
         return CLASS_E_CLASSNOTAVAILABLE;
 
     CClassFactory* pFactory = new (std::nothrow) CClassFactory();

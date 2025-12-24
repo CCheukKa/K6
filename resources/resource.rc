@@ -20,12 +20,12 @@ BEGIN
     BEGIN
         BLOCK "040404b0"
         BEGIN
-            VALUE "CompanyName", "Example Co.\0"
-            VALUE "FileDescription", "中文輸入法範例 (香港)\\0"
+            VALUE "CompanyName", "CCheukKa\0"
+            VALUE "FileDescription", "K6 Stroke\\0"
             VALUE "FileVersion", "1.0.0.0\0"
-            VALUE "InternalName", "ChineseIMEHKExample\0"
-            VALUE "OriginalFilename", "ChineseIMEHKExample.dll\0"
-            VALUE "ProductName", "Chinese IME HK Example\0"
+            VALUE "InternalName", "K6\0"
+            VALUE "OriginalFilename", "K6.dll\0"
+            VALUE "ProductName", "K6 Stroke\0"
             VALUE "ProductVersion", "1.0.0.0\0"
         END
     END

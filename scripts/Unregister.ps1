@@ -7,7 +7,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
-$DllPath = Join-Path $ProjectRoot "build\$Configuration\ChineseIMEHKExample.dll"
+$DllPath = Join-Path $ProjectRoot "build\$Configuration\K6.dll"
 
 Write-Host "=== Unregistering ChineseIME ===" -ForegroundColor Cyan
 

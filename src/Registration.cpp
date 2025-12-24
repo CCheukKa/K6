@@ -10,9 +10,9 @@
 
 extern HINSTANCE g_hInst;
 
-// 港式繁中示例 IME
-static const wchar_t kServiceDesc[] = L"\x4e2d\x6587\x8f38\x5165\x6cd5\x7bc4\x4f8b (\x9999\x6e2f)";
-static const wchar_t kProfileDesc[] = L"\x6e2f\x5f0f\x7e41\x4e2d\x793a\x4f8b IME";
+// K6 Stroke Input
+static const wchar_t kServiceDesc[] = L"K6 Stroke";
+static const wchar_t kProfileDesc[] = L"K6 Stroke";
 
 // Helper to convert GUID to string
 static BOOL GuidToString(REFGUID guid, wchar_t* pszOut, DWORD cchOut) {
@@ -22,7 +22,7 @@ static BOOL GuidToString(REFGUID guid, wchar_t* pszOut, DWORD cchOut) {
 // Register CLSID in registry so COM can find our DLL
 static HRESULT RegisterCLSID() {
     wchar_t szClsid[64];
-    if (!GuidToString(CLSID_ChineseIMEHKExample, szClsid, ARRAYSIZE(szClsid)))
+    if (!GuidToString(CLSID_K6, szClsid, ARRAYSIZE(szClsid)))
         return E_FAIL;
 
     wchar_t szKey[256];
@@ -61,7 +61,7 @@ static HRESULT RegisterCLSID() {
 // Unregister CLSID from registry
 static HRESULT UnregisterCLSID() {
     wchar_t szClsid[64];
-    if (!GuidToString(CLSID_ChineseIMEHKExample, szClsid, ARRAYSIZE(szClsid)))
+    if (!GuidToString(CLSID_K6, szClsid, ARRAYSIZE(szClsid)))
         return E_FAIL;
 
     wchar_t szKey[256];
@@ -94,7 +94,7 @@ HRESULT RegisterTextService() {
     ITfCategoryMgr* catMgr = nullptr;
     hr = CoCreateInstance(CLSID_TF_CategoryMgr, nullptr, CLSCTX_INPROC_SERVER, IID_ITfCategoryMgr, (void**)&catMgr);
     if (SUCCEEDED(hr) && catMgr) {
-        catMgr->RegisterCategory(CLSID_ChineseIMEHKExample, GUID_TFCAT_TIP_KEYBOARD, CLSID_ChineseIMEHKExample);
+        catMgr->RegisterCategory(CLSID_K6, GUID_TFCAT_TIP_KEYBOARD, CLSID_K6);
         catMgr->Release();
     }
 
@@ -105,9 +105,9 @@ HRESULT RegisterTextService() {
     // RegisterProfile expects: rclsid, langid, guidProfile, pchDesc, cchDesc,
     // pchIconFile, cchFile, uIconIndex, hklsubstitute, dwPreferredLayout, bEnabledByDefault, dwFlags
     hr = profileMgr->RegisterProfile(
-        CLSID_ChineseIMEHKExample,
+        CLSID_K6,
         langid,
-        GUID_Profile_ChineseIMEHKExample,
+        GUID_Profile_K6,
         kProfileDesc,
         (ULONG)wcslen(kProfileDesc),
         nullptr,  // pchIconFile
@@ -133,14 +133,14 @@ HRESULT UnregisterTextService() {
                           IID_ITfInputProcessorProfileMgr, (void**)&profileMgr);
     if (SUCCEEDED(hr) && profileMgr) {
         LANGID langid = IME_LANGID;
-        profileMgr->UnregisterProfile(CLSID_ChineseIMEHKExample, langid, GUID_Profile_ChineseIMEHKExample, 0);
+        profileMgr->UnregisterProfile(CLSID_K6, langid, GUID_Profile_K6, 0);
         profileMgr->Release();
     }
 
     ITfCategoryMgr* catMgr = nullptr;
     hr = CoCreateInstance(CLSID_TF_CategoryMgr, nullptr, CLSCTX_INPROC_SERVER, IID_ITfCategoryMgr, (void**)&catMgr);
     if (SUCCEEDED(hr) && catMgr) {
-        catMgr->UnregisterCategory(CLSID_ChineseIMEHKExample, GUID_TFCAT_TIP_KEYBOARD, CLSID_ChineseIMEHKExample);
+        catMgr->UnregisterCategory(CLSID_K6, GUID_TFCAT_TIP_KEYBOARD, CLSID_K6);
         catMgr->Release();
     }
 

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(ChineseIMEHKExample LANGUAGES CXX RC)
+project(K6 LANGUAGES CXX RC)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -12,7 +12,7 @@ if (MSVC)
 endif()
 
 # Build a COM in-proc server (DLL)
-add_library(ChineseIMEHKExample SHARED
+add_library(K6 SHARED
     src/dllmain.cpp
     src/ClassFactory.cpp
     src/ClassFactory.h
@@ -38,7 +38,7 @@ add_library(ChineseIMEHKExample SHARED
 # Link with required Windows libs
 # ole32 for COM, uuid for GUIDs, advapi32 for registry
 
-target_link_libraries(ChineseIMEHKExample
+target_link_libraries(K6
     PRIVATE
     ole32
     uuid
@@ -48,37 +48,37 @@ target_link_libraries(ChineseIMEHKExample
 )
 
 # Define output name
-set_target_properties(ChineseIMEHKExample PROPERTIES
-    OUTPUT_NAME "ChineseIMEHKExample"
+set_target_properties(K6 PROPERTIES
+    OUTPUT_NAME "K6"
 )
 
 # Copy dictionary file to output directory
-add_custom_command(TARGET ChineseIMEHKExample POST_BUILD
+add_custom_command(TARGET K6 POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
     "${CMAKE_SOURCE_DIR}/data/strokeData.txt"
-    "$<TARGET_FILE_DIR:ChineseIMEHKExample>/strokeData.txt"
+    "$<TARGET_FILE_DIR:K6>/strokeData.txt"
     COMMENT "Copying strokeData.txt to output directory"
 )
 
 # Copy suggestions file if present
-add_custom_command(TARGET ChineseIMEHKExample POST_BUILD
+add_custom_command(TARGET K6 POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
     "${CMAKE_SOURCE_DIR}/data/suggestionsData.txt"
-    "$<TARGET_FILE_DIR:ChineseIMEHKExample>/suggestionsData.txt"
+    "$<TARGET_FILE_DIR:K6>/suggestionsData.txt"
     COMMENT "Copying suggestionsData.txt to output directory"
     VERBATIM
 )
 
 # Copy punctuation file to output directory
-add_custom_command(TARGET ChineseIMEHKExample POST_BUILD
+add_custom_command(TARGET K6 POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
     "${CMAKE_SOURCE_DIR}/data/punctuationData.txt"
-    "$<TARGET_FILE_DIR:ChineseIMEHKExample>/punctuationData.txt"
+    "$<TARGET_FILE_DIR:K6>/punctuationData.txt"
     COMMENT "Copying punctuationData.txt to output directory"
     VERBATIM
 )
 
 # Install step (optional)
-install(TARGETS ChineseIMEHKExample DESTINATION bin)
+install(TARGETS K6 DESTINATION bin)
 install(FILES data/strokeData.txt DESTINATION bin)
 install(FILES data/suggestionsData.txt DESTINATION bin OPTIONAL)
