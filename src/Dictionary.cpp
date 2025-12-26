@@ -31,7 +31,7 @@ std::vector<std::wstring> CDictionary::Lookup(const std::wstring& code) const {
 
     Debug::Log(L"Dictionary", (L"Lookup code: " + code +
                                L" | Results: " + std::to_wstring(result.size()) +
-                               L" | Time: " + std::to_wstring(duration) + L"μs")
+                               L" | Time: " + std::to_wstring(duration / 1000) + L"." + std::to_wstring(duration % 1000) + L"ms")
                                   .c_str());
 
     return result;
@@ -48,7 +48,7 @@ std::vector<std::wstring> CDictionary::LookupRegex(const std::wstring& pattern) 
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
         Debug::Log(L"Dictionary", (L"LookupRegex (cached) pattern: " + pattern +
                                    L" | Results: " + std::to_wstring(cacheIt->second.size()) +
-                                   L" | Time: " + std::to_wstring(duration) + L"μs")
+                                   L" | Time: " + std::to_wstring(duration / 1000) + L"." + std::to_wstring(duration % 1000) + L"ms")
                                       .c_str());
         return cacheIt->second;
     }
@@ -96,7 +96,7 @@ std::vector<std::wstring> CDictionary::LookupRegex(const std::wstring& pattern) 
     Debug::Log(L"Dictionary", (L"LookupRegex pattern: " + pattern +
                                L" | Results: " + std::to_wstring(out.size()) +
                                L" | Entries scanned: " + std::to_wstring(_insertionOrder.size()) +
-                               L" | Time: " + std::to_wstring(duration) + L"μs")
+                               L" | Time: " + std::to_wstring(duration / 1000) + L"." + std::to_wstring(duration % 1000) + L"ms")
                                   .c_str());
 
     return out;
@@ -112,7 +112,7 @@ std::vector<std::wstring> CDictionary::GetCodesForCharacter(const std::wstring& 
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
         Debug::Log(L"Dictionary", (L"GetCodesForCharacter (cached): " + character +
                                    L" | Results: " + std::to_wstring(cacheIt->second.size()) +
-                                   L" | Time: " + std::to_wstring(duration) + L"μs")
+                                   L" | Time: " + std::to_wstring(duration / 1000) + L"." + std::to_wstring(duration % 1000) + L"ms")
                                       .c_str());
         return cacheIt->second;
     }
@@ -140,7 +140,7 @@ std::vector<std::wstring> CDictionary::GetCodesForCharacter(const std::wstring& 
 
     Debug::Log(L"Dictionary", (L"GetCodesForCharacter: " + character +
                                L" | Results: " + std::to_wstring(codes.size()) +
-                               L" | Time: " + std::to_wstring(duration) + L"μs")
+                               L" | Time: " + std::to_wstring(duration / 1000) + L"." + std::to_wstring(duration % 1000) + L"ms")
                                   .c_str());
 
     return codes;
