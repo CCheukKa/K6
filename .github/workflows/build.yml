@@ -14,20 +14,10 @@ concurrency:
 
 jobs:
     build:
-        runs-on: ubuntu-latest
+        runs-on: windows-latest
         steps:
             - name: Checkout
               uses: actions/checkout@v4
-
-            - name: Install Dependencies
-              run: |
-                sudo apt-get update
-                sudo apt-get install -y cmake g++ make  # Or clang++, adjust as needed
-
-            - name: Configure CMake
-              run: |
-                mkdir build
-                cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 
             - name: Build
               run: |
