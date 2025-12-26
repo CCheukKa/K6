@@ -4,7 +4,6 @@
 
 #include <chrono>
 #include <fstream>
-#include <regex>
 #include <set>
 #include <sstream>
 
@@ -53,32 +52,71 @@ std::vector<std::wstring> CDictionary::LookupRegex(const std::wstring& pattern) 
         return cacheIt->second;
     }
 
-    // Build anchored regex and replace wildcard ＊ with '.' - optimized with reserve
-    std::wstring rxText;
-    rxText.reserve(pattern.size() + 2);  // Reserve for '^' + pattern + null terminator overhead
-    rxText = L"^";
-
-    for (wchar_t ch : pattern) {
-        if (ch == Stroke::WILDCARD[0]) {
-            rxText.push_back(L'.');
-        } else {
-            rxText.push_back(ch);
-        }
-    }
-
-    std::wregex rx(rxText);
     std::vector<std::wstring> out;
     std::set<std::wstring> seen;
 
     // Pre-reserve capacity to reduce allocations (typical result size)
     out.reserve(50);
 
+    // Fast wildcard matching without regex - much more efficient
+    // Split pattern into segments (non-wildcard parts)
+    std::vector<std::wstring> segments;
+    std::wstring currentSegment;
+
+    for (wchar_t ch : pattern) {
+        if (ch == Stroke::WILDCARD[0]) {
+            if (!currentSegment.empty()) {
+                segments.push_back(currentSegment);
+                currentSegment.clear();
+            }
+            segments.push_back(std::wstring(1, Stroke::WILDCARD[0]));
+        } else {
+            currentSegment.push_back(ch);
+        }
+    }
+    if (!currentSegment.empty()) {
+        segments.push_back(currentSegment);
+    }
+
+    // Check if pattern starts with wildcard
+    bool startsWithWildcard = !segments.empty() && segments[0] == std::wstring(1, Stroke::WILDCARD[0]);
+
     // Iterate in insertion order instead of map order
     for (const auto& entry : _insertionOrder) {
         const std::wstring& code = entry.first;
         const std::wstring& character = entry.second;
 
-        if (std::regex_search(code, rx)) {
+        // Fast wildcard matching with start-aligned partial match
+        // Pattern matches if all segments match sequentially from the start
+        // but the code can have additional characters after the pattern
+        bool matches = true;
+        size_t codePos = 0;
+
+        for (size_t i = 0; i < segments.size(); ++i) {
+            const auto& segment = segments[i];
+
+            if (segment == std::wstring(1, Stroke::WILDCARD[0])) {
+                // Wildcard matches any single character
+                if (codePos < code.length()) {
+                    codePos++;
+                } else {
+                    // Wildcard but no character left in code
+                    matches = false;
+                    break;
+                }
+            } else {
+                // Literal segment must match exactly at current position
+                if (codePos + segment.length() > code.length() ||
+                    code.substr(codePos, segment.length()) != segment) {
+                    matches = false;
+                    break;
+                }
+                codePos += segment.length();
+            }
+        }
+
+        // Match if pattern matched from start (code can have additional characters after pattern)
+        if (matches) {
             if (seen.insert(character).second) {
                 out.push_back(character);
             }
