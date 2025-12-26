@@ -84,5 +84,6 @@ add_custom_command(TARGET stage POST_BUILD
     # Copy required data files (if present)
     COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_SOURCE_DIR}/data/strokeData.txt ${OUTPUT_DIR}/strokeData.txt
     COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_SOURCE_DIR}/data/suggestionsData.txt ${OUTPUT_DIR}/suggestionsData.txt
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_SOURCE_DIR}/scripts/README-Install.txt ${OUTPUT_DIR}/README-Install.txt
     VERBATIM
 )
