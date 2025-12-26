@@ -33,15 +33,15 @@ void CCandidateWindow::SetState(InputState state) {  // Change parameter type
     }
 }
 
-void CCandidateWindow::SetPreedit(const std::wstring& preedit) {
-    _preedit = preedit;
+void CCandidateWindow::SetStrokeInput(const std::wstring& strokeinput) {
+    _strokeinput = strokeinput;
     if (_hwnd) {
         InvalidateRect(_hwnd, nullptr, TRUE);
     }
 }
 
-void CCandidateWindow::SetGhostPreedit(const std::wstring& ghostPreedit) {
-    _ghostPreedit = ghostPreedit;
+void CCandidateWindow::SetGhostStrokeInput(const std::wstring& ghostStrokeInput) {
+    _ghostStrokeInput = ghostStrokeInput;
     if (_hwnd) {
         InvalidateRect(_hwnd, nullptr, TRUE);
     }
@@ -71,7 +71,7 @@ void CCandidateWindow::SetPage(UINT page) {
 }
 
 void CCandidateWindow::Show() {
-    if (_candidates.empty() && _preedit.empty() && _ghostPreedit.empty()) {
+    if (_candidates.empty() && _strokeinput.empty() && _ghostStrokeInput.empty()) {
         Hide();
         return;
     }
@@ -156,19 +156,19 @@ void CCandidateWindow::Paint(HDC hdc) {
 
     int y = PADDING;
 
-    // Preedit or ghost preedit
-    if (!_preedit.empty() || !_ghostPreedit.empty()) {
-        RECT preeditRect = {PADDING, y, rc.right - PADDING, y + LINE_HEIGHT};
-        if (!_preedit.empty()) {
+    // StrokeInput or ghost strokeinput
+    if (!_strokeinput.empty() || !_ghostStrokeInput.empty()) {
+        RECT strokeinputRect = {PADDING, y, rc.right - PADDING, y + LINE_HEIGHT};
+        if (!_strokeinput.empty()) {
             SetTextColor(hdc, RGB(0, 0, 255));
             wchar_t buf[256];
-            swprintf_s(buf, L"%s", _preedit.c_str());
-            DrawText(hdc, buf, -1, &preeditRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
-        } else if (!_ghostPreedit.empty()) {
+            swprintf_s(buf, L"%s", _strokeinput.c_str());
+            DrawText(hdc, buf, -1, &strokeinputRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+        } else if (!_ghostStrokeInput.empty()) {
             SetTextColor(hdc, RGB(128, 128, 128));
             wchar_t buf[256];
-            swprintf_s(buf, L"%s", _ghostPreedit.c_str());
-            DrawText(hdc, buf, -1, &preeditRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+            swprintf_s(buf, L"%s", _ghostStrokeInput.c_str());
+            DrawText(hdc, buf, -1, &strokeinputRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
         }
         y += LINE_HEIGHT;
         MoveToEx(hdc, PADDING, y, nullptr);
@@ -233,6 +233,6 @@ RECT CCandidateWindow::CalculateWindowSize() {
     UINT start = _page * CANDIDATES_PER_PAGE;
     UINT count = (start < total) ? min(CANDIDATES_PER_PAGE, total - start) : 0;
     int height = PADDING * 2 + (int)count * LINE_HEIGHT;
-    if (!_preedit.empty() || !_ghostPreedit.empty()) height += LINE_HEIGHT + 4;
+    if (!_strokeinput.empty() || !_ghostStrokeInput.empty()) height += LINE_HEIGHT + 4;
     return {0, 0, MIN_WIDTH, height};
 }

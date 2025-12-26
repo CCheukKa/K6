@@ -15,8 +15,8 @@ class CCandidateWindow {
     void SetCandidates(const std::vector<std::wstring>& candidates);
     void SetSelection(UINT index);
     void SetPage(UINT page);
-    void SetPreedit(const std::wstring& preedit);
-    void SetGhostPreedit(const std::wstring& ghostPreedit);
+    void SetStrokeInput(const std::wstring& strokeinput);
+    void SetGhostStrokeInput(const std::wstring& ghostStrokeInput);
     void SetState(InputState state);
     void Show();
     void Hide();
@@ -35,8 +35,8 @@ class CCandidateWindow {
     UINT _selection;
     UINT _page;
     std::vector<std::wstring> _candidates;
-    std::wstring _preedit;
-    std::wstring _ghostPreedit;
+    std::wstring _strokeinput;
+    std::wstring _ghostStrokeInput;
     InputState _state;
 
     // Helper methods

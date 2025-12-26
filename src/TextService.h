@@ -52,8 +52,8 @@ class CTextService : public ITfTextInputProcessor, public ITfKeyEventSink {
     std::unique_ptr<InputStateMachine> _stateMachine;
 
     // Query / selection state
-    std::wstring _preedit;                   // current query strokes
-    std::wstring _ghostPreedit;              // ghost strokes after commit
+    std::wstring _strokeinput;               // current query strokes
+    std::wstring _ghostStrokeInput;          // ghost strokes after commit
     std::vector<std::wstring> _candidates;   // character results
     std::vector<std::wstring> _suggestions;  // suggestion results
     UINT _selectedCandidate;                 // index in current page [0..8]

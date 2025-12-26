@@ -161,8 +161,8 @@ void CTextService::HandleInputAction(ITfContext* pContext, const InputAction& ac
             DebugLog(L"Action: ADD_STROKE");
             DebugLogStroke(L"ADD_STROKE details", std::wstring(1, action.stroke));
             if (_state == InputState::TYPING) {
-                _ghostPreedit.clear();
-                _preedit.push_back(action.stroke);
+                _ghostStrokeInput.clear();
+                _strokeinput.push_back(action.stroke);
                 _page = 0;
                 _selectedCandidate = 0;
                 UpdateQueryResults();
@@ -172,12 +172,12 @@ void CTextService::HandleInputAction(ITfContext* pContext, const InputAction& ac
 
         case InputActionType::DELETE_STROKE: {
             DebugLog(L"Action: DELETE_STROKE");
-            if (!_preedit.empty()) {
-                _preedit.pop_back();
+            if (!_strokeinput.empty()) {
+                _strokeinput.pop_back();
                 _page = 0;
                 _selectedCandidate = 0;
             } else {
-                _ghostPreedit.clear();
+                _ghostStrokeInput.clear();
                 _suggestions.clear();
                 *pfEaten = FALSE;
             }
@@ -187,8 +187,8 @@ void CTextService::HandleInputAction(ITfContext* pContext, const InputAction& ac
 
         case InputActionType::CLEAR_STROKE: {
             DebugLog(L"Action: CLEAR_STROKE");
-            _ghostPreedit.clear();
-            _preedit.clear();
+            _ghostStrokeInput.clear();
+            _strokeinput.clear();
             _candidates.clear();
             _suggestions.clear();
             _page = 0;
@@ -201,8 +201,8 @@ void CTextService::HandleInputAction(ITfContext* pContext, const InputAction& ac
             DebugLog(L"Action: TOGGLE_ENABLE");
             _enabled = !_enabled;
             if (!_enabled) {
-                _ghostPreedit.clear();
-                _preedit.clear();
+                _ghostStrokeInput.clear();
+                _strokeinput.clear();
                 _candidates.clear();
                 _suggestions.clear();
                 _page = 0;
@@ -220,7 +220,7 @@ void CTextService::HandleInputAction(ITfContext* pContext, const InputAction& ac
                 const std::wstring chosen = list[idx];
                 CommitText(pContext, chosen);
                 SetGhostFromCharacter(chosen);
-                _preedit.clear();
+                _strokeinput.clear();
                 _candidates.clear();
                 _page = 0;
                 _selectedCandidate = 0;
@@ -251,8 +251,8 @@ void CTextService::HandleInputAction(ITfContext* pContext, const InputAction& ac
         case InputActionType::SUBSTITUTE_CHARACTER: {
             DebugLog(L"Action: SUBSTITUTE_CHARACTER");
             CommitText(pContext, action.character);
-            _ghostPreedit.clear();
-            _preedit.clear();
+            _ghostStrokeInput.clear();
+            _strokeinput.clear();
             _candidates.clear();
             _suggestions.clear();
             _page = 0;
@@ -291,11 +291,11 @@ STDMETHODIMP CTextService::OnTestKeyUp(ITfContext*, WPARAM, LPARAM, BOOL* pfEate
 }
 
 void CTextService::UpdateQueryResults() {
-    if (_preedit.empty()) {
+    if (_strokeinput.empty()) {
         _candidates.clear();
         // keep suggestions (ghost mode)
     } else {
-        _candidates = _dictionary.LookupRegex(_preedit);
+        _candidates = _dictionary.LookupRegex(_strokeinput);
         _suggestions.clear();
     }
 
@@ -311,11 +311,11 @@ void CTextService::UpdateQueryResults() {
 
 void CTextService::SetGhostFromCharacter(const std::wstring& ch) {
     if (ch.empty()) {
-        _ghostPreedit.clear();
+        _ghostStrokeInput.clear();
         return;
     }
     std::wstring key(1, ch.back());
-    _ghostPreedit = _dictionary.GetRandomStrokeForCharacter(key);
+    _ghostStrokeInput = _dictionary.GetRandomStrokeForCharacter(key);
 }
 
 void CTextService::ShowSuggestionsForCharacter(const std::wstring& ch) {
@@ -377,18 +377,18 @@ void CTextService::CommitText(ITfContext* pContext, const std::wstring& text) {
 void CTextService::UpdateCandidateWindow() {
     {
         std::wstringstream ss;
-        ss << L"[IME][TS->CW] UpdateCandidateWindow preedit='";
-        for (wchar_t c : _preedit) {
+        ss << L"[IME][TS->CW] UpdateCandidateWindow strokeinput='";
+        for (wchar_t c : _strokeinput) {
             ss << c << L"(0x" << std::hex << static_cast<int>(c) << std::dec << L") ";
         }
-        ss << L"' ghost='" << _ghostPreedit << L"' cand=" << _candidates.size() << L" sugg=" << _suggestions.size()
+        ss << L"' ghost='" << _ghostStrokeInput << L"' cand=" << _candidates.size() << L" sugg=" << _suggestions.size()
            << L" page=" << _page;
         OutputDebugStringW(ss.str().c_str());
         OutputDebugStringW(L"\n");
     }
 
-    _candidateWindow->SetPreedit(_preedit);
-    _candidateWindow->SetGhostPreedit(_ghostPreedit);
+    _candidateWindow->SetStrokeInput(_strokeinput);
+    _candidateWindow->SetGhostStrokeInput(_ghostStrokeInput);
     _candidateWindow->SetCandidates(_candidates.empty() ? _suggestions : _candidates);
     _candidateWindow->SetSelection(_selectedCandidate);
     _candidateWindow->SetPage(_page);
@@ -401,8 +401,8 @@ void CTextService::UpdateCandidateWindow() {
 }
 
 void CTextService::Reset() {
-    _preedit.clear();
-    _ghostPreedit.clear();
+    _strokeinput.clear();
+    _ghostStrokeInput.clear();
     _candidates.clear();
     _suggestions.clear();
     _selectedCandidate = 0;
