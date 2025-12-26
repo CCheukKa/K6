@@ -156,13 +156,14 @@ LRESULT CALLBACK CCandidateWindow::WindowProc(HWND hwnd, UINT uMsg, WPARAM wPara
 
 void CCandidateWindow::Paint(HDC hdc) {
     // Colours
-    const auto WINDOW_BACKGROUND_COLOUR = RGB(255, 255, 255);
-    const auto WINDOW_BORDER_COLOUR = RGB(128, 128, 128);
-    const auto STROKE_INPUT_COLOUR = RGB(40, 40, 240);
-    const auto GHOST_STROKE_INPUT_COLOUR = RGB(128, 128, 128);
-    const auto CANDIDATE_TEXT_COLOUR = RGB(0, 0, 0);
-    const auto CANDIDATE_NUMBER_ACTIVE_COLOUR = RGB(255, 0, 0);
-    const auto CANDIDATE_NUMBER_INACTIVE_COLOUR = RGB(200, 200, 200);
+    const auto WINDOW_BACKGROUND_COLOUR = RGB(44, 46, 48);
+    const auto WINDOW_BORDER_COLOUR = RGB(85, 85, 87);
+    const auto STROKE_INPUT_BACKGROUND_COLOUR = RGB(34, 36, 38);
+    const auto STROKE_INPUT_COLOUR = RGB(211, 207, 202);
+    const auto GHOST_STROKE_INPUT_COLOUR = RGB(211, 207, 202);
+    const auto CANDIDATE_TEXT_COLOUR = RGB(211, 207, 202);
+    const auto CANDIDATE_NUMBER_ACTIVE_COLOUR = RGB(161, 157, 152);
+    const auto CANDIDATE_NUMBER_INACTIVE_COLOUR = RGB(77, 78, 78);
 
     RECT rc;
     GetClientRect(_hwnd, &rc);
@@ -172,17 +173,28 @@ void CCandidateWindow::Paint(HDC hdc) {
     FillRect(hdc, &rc, hBrush);
     DeleteObject(hBrush);
 
+    // Stroke Input Background
+    RECT strokeInputRect = {0, 0, rc.right, LINE_HEIGHT + PADDING};
+    HBRUSH hSIBrush = CreateSolidBrush(STROKE_INPUT_BACKGROUND_COLOUR);
+    FillRect(hdc, &strokeInputRect, hSIBrush);
+    DeleteObject(hSIBrush);
+
     // Border
     HPEN hPen = CreatePen(PS_SOLID, 1, WINDOW_BORDER_COLOUR);
     HPEN hOldPen = (HPEN)SelectObject(hdc, hPen);
+    HBRUSH hOldBrush = (HBRUSH)SelectObject(hdc, GetStockObject(NULL_BRUSH));  // avoid filling over the background
     Rectangle(hdc, rc.left, rc.top, rc.right, rc.bottom);
+    SelectObject(hdc, hOldBrush);
     SelectObject(hdc, hOldPen);
     DeleteObject(hPen);
 
     // Font (bold, slightly larger for readability)
-    HFONT hFont = CreateFont(22, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+    HFONT hFont = CreateFont(24, 0, 0, 0, FW_EXTRABOLD, FALSE, FALSE, FALSE,
                              DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                              CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Microsoft JhengHei");
+    HFONT hSmallFont = CreateFont(22, 0, 0, 0, FW_EXTRABOLD, FALSE, FALSE, FALSE,
+                                  DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                                  CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Microsoft JhengHei");
     HFONT hOldFont = (HFONT)SelectObject(hdc, hFont);
     SetBkMode(hdc, TRANSPARENT);
 
@@ -203,11 +215,16 @@ void CCandidateWindow::Paint(HDC hdc) {
             DrawText(hdc, buf, -1, &strokeinputRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
         }
         y += LINE_HEIGHT;
-        MoveToEx(hdc, PADDING, y, nullptr);
-        LineTo(hdc, rc.right - PADDING, y);
+        HPEN hSepPen = CreatePen(PS_SOLID, 2, WINDOW_BORDER_COLOUR);
+        HPEN hOldSepPen = (HPEN)SelectObject(hdc, hSepPen);
+        MoveToEx(hdc, 0, y, nullptr);
+        LineTo(hdc, rc.right, y);
+        SelectObject(hdc, hOldSepPen);
+        DeleteObject(hSepPen);
     }
 
     // Candidates (paged)
+    y += PADDING;
     UINT total = static_cast<UINT>(_candidates.size());
     UINT start = _page * CANDIDATES_PER_PAGE;
     if (start < total) {
@@ -222,17 +239,19 @@ void CCandidateWindow::Paint(HDC hdc) {
             GetTextExtentPoint32(hdc, numBuf, -1, &numSize);
 
             RECT numRect = itemRect;
-            numRect.right = numRect.left + numSize.cx + 20;  // small padding after the number
+            numRect.right = numRect.left + numSize.cx + 24;  // small padding after the number
 
             // Number color
             SetTextColor(hdc, (_state == InputState::SELECTING) ? CANDIDATE_NUMBER_ACTIVE_COLOUR : CANDIDATE_NUMBER_INACTIVE_COLOUR);
+            SelectObject(hdc, hSmallFont);
             DrawText(hdc, numBuf, -1, &numRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
 
             RECT candRect = itemRect;
             candRect.left = numRect.right;
 
-            // Candidate color
+            // Candidate text color
             SetTextColor(hdc, CANDIDATE_TEXT_COLOUR);
+            SelectObject(hdc, hFont);
             DrawText(hdc, _candidates[start + i].c_str(), -1, &candRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
         }
     }
@@ -291,7 +310,7 @@ RECT CCandidateWindow::CalculateWindowSize() {
     UINT total = static_cast<UINT>(_candidates.size());
     UINT start = _page * CANDIDATES_PER_PAGE;
     UINT count = (start < total) ? min(CANDIDATES_PER_PAGE, total - start) : 0;
-    int height = PADDING * 2 + (int)count * LINE_HEIGHT;
+    int height = PADDING * 2 + (int)count * LINE_HEIGHT + PADDING;
     if (!_strokeinput.empty() || !_ghostStrokeInput.empty()) height += LINE_HEIGHT + 4;
 
     // Calculate required width based on strokeinput/ghost stroke input content
@@ -299,7 +318,7 @@ RECT CCandidateWindow::CalculateWindowSize() {
     if (!_strokeinput.empty() || !_ghostStrokeInput.empty()) {
         HDC hdc = GetDC(nullptr);
         if (hdc) {
-            HFONT hFont = CreateFont(22, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+            HFONT hFont = CreateFont(24, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
                                      DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
                                      CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Microsoft JhengHei");
             HFONT hOldFont = (HFONT)SelectObject(hdc, hFont);

@@ -132,9 +132,9 @@ LRESULT CALLBACK CIndicatorWindow::WindowProc(HWND hwnd, UINT uMsg, WPARAM wPara
 
 void CIndicatorWindow::Paint(HDC hdc) {
     // Colours
-    const auto WINDOW_BACKGROUND_COLOUR = RGB(240, 60, 60);
+    const auto WINDOW_BACKGROUND_COLOUR = RGB(255, 128, 170);
     const auto WINDOW_BORDER_COLOUR = RGB(20, 20, 20);
-    const auto TEXT_COLOUR = RGB(255, 255, 255);
+    const auto TEXT_COLOUR = RGB(0, 0, 0);
 
     RECT rc;
     GetClientRect(_hwnd, &rc);
