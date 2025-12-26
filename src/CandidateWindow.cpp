@@ -132,16 +132,25 @@ LRESULT CALLBACK CCandidateWindow::WindowProc(HWND hwnd, UINT uMsg, WPARAM wPara
 }
 
 void CCandidateWindow::Paint(HDC hdc) {
+    // Colours
+    const auto WINDOW_BACKGROUND_COLOUR = RGB(255, 255, 255);
+    const auto WINDOW_BORDER_COLOUR = RGB(128, 128, 128);
+    const auto STROKE_INPUT_COLOUR = RGB(40, 40, 240);
+    const auto GHOST_STROKE_INPUT_COLOUR = RGB(128, 128, 128);
+    const auto CANDIDATE_TEXT_COLOUR = RGB(0, 0, 0);
+    const auto CANDIDATE_NUMBER_ACTIVE_COLOUR = RGB(255, 0, 0);
+    const auto CANDIDATE_NUMBER_INACTIVE_COLOUR = RGB(200, 200, 200);
+
     RECT rc;
     GetClientRect(_hwnd, &rc);
 
     // Background
-    HBRUSH hBrush = CreateSolidBrush(RGB(255, 255, 255));
+    HBRUSH hBrush = CreateSolidBrush(WINDOW_BACKGROUND_COLOUR);
     FillRect(hdc, &rc, hBrush);
     DeleteObject(hBrush);
 
     // Border
-    HPEN hPen = CreatePen(PS_SOLID, 1, RGB(128, 128, 128));
+    HPEN hPen = CreatePen(PS_SOLID, 1, WINDOW_BORDER_COLOUR);
     HPEN hOldPen = (HPEN)SelectObject(hdc, hPen);
     Rectangle(hdc, rc.left, rc.top, rc.right, rc.bottom);
     SelectObject(hdc, hOldPen);
@@ -160,12 +169,12 @@ void CCandidateWindow::Paint(HDC hdc) {
     if (!_strokeinput.empty() || !_ghostStrokeInput.empty()) {
         RECT strokeinputRect = {PADDING, y, rc.right - PADDING, y + LINE_HEIGHT};
         if (!_strokeinput.empty()) {
-            SetTextColor(hdc, RGB(0, 0, 255));
+            SetTextColor(hdc, STROKE_INPUT_COLOUR);
             wchar_t buf[256];
             swprintf_s(buf, L"%s", _strokeinput.c_str());
             DrawText(hdc, buf, -1, &strokeinputRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
         } else if (!_ghostStrokeInput.empty()) {
-            SetTextColor(hdc, RGB(128, 128, 128));
+            SetTextColor(hdc, GHOST_STROKE_INPUT_COLOUR);
             wchar_t buf[256];
             swprintf_s(buf, L"%s", _ghostStrokeInput.c_str());
             DrawText(hdc, buf, -1, &strokeinputRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
@@ -182,7 +191,6 @@ void CCandidateWindow::Paint(HDC hdc) {
         UINT count = min(CANDIDATES_PER_PAGE, total - start);
         for (UINT i = 0; i < count; i++) {
             RECT itemRect = {PADDING, y + (int)i * LINE_HEIGHT, rc.right - PADDING, y + (int)(i + 1) * LINE_HEIGHT};
-            SetTextColor(hdc, RGB(0, 0, 0));
 
             wchar_t numBuf[16];
             swprintf_s(numBuf, L"%d.", i + 1);
@@ -194,14 +202,14 @@ void CCandidateWindow::Paint(HDC hdc) {
             numRect.right = numRect.left + numSize.cx + 20;  // small padding after the number
 
             // Number color
-            SetTextColor(hdc, (_state == InputState::SELECTING) ? RGB(255, 0, 0) : RGB(200, 200, 200));
+            SetTextColor(hdc, (_state == InputState::SELECTING) ? CANDIDATE_NUMBER_ACTIVE_COLOUR : CANDIDATE_NUMBER_INACTIVE_COLOUR);
             DrawText(hdc, numBuf, -1, &numRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
 
             RECT candRect = itemRect;
             candRect.left = numRect.right;
 
             // Candidate color
-            SetTextColor(hdc, RGB(0, 0, 0));
+            SetTextColor(hdc, CANDIDATE_TEXT_COLOUR);
             DrawText(hdc, _candidates[start + i].c_str(), -1, &candRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
         }
     }
