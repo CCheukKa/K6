@@ -28,7 +28,7 @@ jobs:
             - name: Create a Release
               uses: ncipollo/release-action@v1
               with:
-                  artifacts: "build/output/*"
+                  artifacts: "build/output"
                   name: "${{github.event.head_commit.timestamp}} - ${{github.sha}}"
                   commit: ${{github.sha}}
                   tag: "build-${{github.run_number}}"
