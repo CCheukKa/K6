@@ -32,6 +32,7 @@ class CDictionary {
     std::map<std::wstring, std::vector<std::wstring>> _dictionary;
     std::vector<std::pair<std::wstring, std::wstring>> _insertionOrder;
     mutable std::map<std::wstring, std::vector<std::wstring>> _regexCache;
+    mutable std::map<std::wstring, std::vector<std::wstring>> _reverseCache;
 
     void AddEntry(const std::wstring& code, const std::wstring& character);
 };

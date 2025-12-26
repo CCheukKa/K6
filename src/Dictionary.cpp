@@ -41,6 +41,7 @@ std::vector<std::wstring> CDictionary::LookupRegex(const std::wstring& pattern) 
     auto start = std::chrono::high_resolution_clock::now();
 
     if (pattern.empty()) return {};
+
     auto cacheIt = _regexCache.find(pattern);
     if (cacheIt != _regexCache.end()) {
         auto end = std::chrono::high_resolution_clock::now();
@@ -52,9 +53,11 @@ std::vector<std::wstring> CDictionary::LookupRegex(const std::wstring& pattern) 
         return cacheIt->second;
     }
 
-    // Build anchored regex and replace wildcard ＊ with '.'
-    std::wstring rxText = L"^";
-    rxText.reserve(pattern.size() + 1);
+    // Build anchored regex and replace wildcard ＊ with '.' - optimized with reserve
+    std::wstring rxText;
+    rxText.reserve(pattern.size() + 2);  // Reserve for '^' + pattern + null terminator overhead
+    rxText = L"^";
+
     for (wchar_t ch : pattern) {
         if (ch == Stroke::WILDCARD[0]) {
             rxText.push_back(L'.');
@@ -67,6 +70,9 @@ std::vector<std::wstring> CDictionary::LookupRegex(const std::wstring& pattern) 
     std::vector<std::wstring> out;
     std::set<std::wstring> seen;
 
+    // Pre-reserve capacity to reduce allocations (typical result size)
+    out.reserve(50);
+
     // Iterate in insertion order instead of map order
     for (const auto& entry : _insertionOrder) {
         const std::wstring& code = entry.first;
@@ -78,6 +84,9 @@ std::vector<std::wstring> CDictionary::LookupRegex(const std::wstring& pattern) 
             }
         }
     }
+
+    // Shrink to actual size to save memory in cache
+    out.shrink_to_fit();
 
     _regexCache.emplace(pattern, out);
 
@@ -96,15 +105,35 @@ std::vector<std::wstring> CDictionary::LookupRegex(const std::wstring& pattern) 
 std::vector<std::wstring> CDictionary::GetCodesForCharacter(const std::wstring& character) const {
     auto start = std::chrono::high_resolution_clock::now();
 
+    // Check reverse lookup cache first
+    auto cacheIt = _reverseCache.find(character);
+    if (cacheIt != _reverseCache.end()) {
+        auto end = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        Debug::Log(L"Dictionary", (L"GetCodesForCharacter (cached): " + character +
+                                   L" | Results: " + std::to_wstring(cacheIt->second.size()) +
+                                   L" | Time: " + std::to_wstring(duration) + L"μs")
+                                      .c_str());
+        return cacheIt->second;
+    }
+
     std::vector<std::wstring> codes;
+    codes.reserve(10);  // Pre-allocate space for typical number of codes per character
+
     for (const auto& kv : _dictionary) {
         for (const auto& ch : kv.second) {
             if (ch == character) {
                 codes.push_back(kv.first);
-                break;
+                break;  // Found match in this code's list, move to next code
             }
         }
     }
+
+    // Shrink to actual size before caching
+    codes.shrink_to_fit();
+
+    // Cache the result for future lookups
+    _reverseCache.emplace(character, codes);
 
     auto end = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
@@ -159,6 +188,7 @@ bool CDictionary::LoadFromFile(const std::wstring& path) {
     _dictionary.clear();
     _insertionOrder.clear();
     _regexCache.clear();
+    _reverseCache.clear();  // Clear reverse cache on reload
 
     // Open file as UTF-8
     std::ifstream file(path, std::ios::binary);
@@ -167,6 +197,7 @@ bool CDictionary::LoadFromFile(const std::wstring& path) {
     }
 
     std::string line;
+    line.reserve(256);  // Pre-allocate typical line size
     int lineNum = 0;
 
     // Skip BOM if present
