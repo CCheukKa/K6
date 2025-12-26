@@ -22,6 +22,8 @@ add_library(K6 SHARED
     src/EditSession.h
     src/CandidateWindow.cpp
     src/CandidateWindow.h
+    src/IndicatorWindow.cpp
+    src/IndicatorWindow.h
     src/Dictionary.cpp
     src/Dictionary.h
     src/Suggestions.cpp

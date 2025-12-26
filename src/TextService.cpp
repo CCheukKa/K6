@@ -8,6 +8,7 @@
 #include "CandidateWindow.h"
 #include "Debug.h"
 #include "EditSession.h"
+#include "IndicatorWindow.h"
 
 // Debug helper
 static void DebugLog(const wchar_t* msg) {
@@ -32,6 +33,7 @@ CTextService::CTextService()
       _clientId(TF_CLIENTID_NULL),
       _keystrokeMgr(nullptr),
       _candidateWindow(nullptr),
+      _indicatorWindow(nullptr),
       _selectedCandidate(0),
       _page(0),
       _state(InputState::TYPING),
@@ -39,6 +41,7 @@ CTextService::CTextService()
       _stateMachine(std::make_unique<InputStateMachine>()) {
     Debug::LogDirect(L"CTextService constructor started\n");
     _candidateWindow = new CCandidateWindow();
+    _indicatorWindow = new CIndicatorWindow();
     _dictionary.LoadFromFile(CDictionary::GetDefaultDictionaryPath());
     _suggestionDict.LoadFromFile(CSuggestions::GetDefaultSuggestionsPath());
     bool punctLoaded = _punctuationMap.LoadFromFile(CPunctuation::GetDefaultPunctuationPath());
@@ -52,6 +55,7 @@ CTextService::CTextService()
 
 CTextService::~CTextService() {
     delete _candidateWindow;
+    delete _indicatorWindow;
 }
 
 // IUnknown
@@ -102,6 +106,10 @@ STDMETHODIMP CTextService::Activate(ITfThreadMgr* ptim, TfClientId tid) {
     } else {
         DebugLog(L"Failed to get ITfKeystrokeMgr");
     }
+    // Show indicator when IME is enabled
+    if (_indicatorWindow && _enabled) {
+        _indicatorWindow->Show();
+    }
     return S_OK;
 }
 
@@ -116,6 +124,9 @@ STDMETHODIMP CTextService::Deactivate() {
         _threadMgr = nullptr;
     }
     Reset();
+    if (_indicatorWindow) {
+        _indicatorWindow->Hide();
+    }
     return S_OK;
 }
 
@@ -413,6 +424,9 @@ void CTextService::Reset() {
     _page = 0;
     _state = _enabled ? InputState::TYPING : InputState::DISABLED;
     _candidateWindow->Hide();
+    if (!_enabled && _indicatorWindow) {
+        _indicatorWindow->Hide();
+    }
 }
 
 void CTextService::ToggleEnabled() {
@@ -420,5 +434,11 @@ void CTextService::ToggleEnabled() {
     _state = _enabled ? InputState::TYPING : InputState::DISABLED;
     if (!_enabled) {
         Reset();
+    }
+    if (_indicatorWindow) {
+        if (_enabled)
+            _indicatorWindow->Show();
+        else
+            _indicatorWindow->Hide();
     }
 }

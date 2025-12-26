@@ -14,6 +14,7 @@
 #include "guid.h"
 
 class CCandidateWindow;
+class CIndicatorWindow;
 
 class CTextService : public ITfTextInputProcessor, public ITfKeyEventSink {
    public:
@@ -69,6 +70,9 @@ class CTextService : public ITfTextInputProcessor, public ITfKeyEventSink {
     CDictionary _dictionary;
     CSuggestions _suggestionDict;
     CPunctuation _punctuationMap;
+
+    // Small top-left indicator window
+    CIndicatorWindow* _indicatorWindow;
 
     void CommitText(ITfContext* pContext, const std::wstring& text);
     void UpdateCandidateWindow();
