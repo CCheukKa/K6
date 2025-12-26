@@ -2,11 +2,13 @@
 
 #include <windows.h>
 
+#include <chrono>
 #include <fstream>
 #include <regex>
 #include <set>
 #include <sstream>
 
+#include "Debug.h"
 #include "Stroke.h"
 
 CDictionary::CDictionary() {
@@ -16,17 +18,39 @@ CDictionary::~CDictionary() {
 }
 
 std::vector<std::wstring> CDictionary::Lookup(const std::wstring& code) const {
+    auto start = std::chrono::high_resolution_clock::now();
+
     auto it = _dictionary.find(code);
+    std::vector<std::wstring> result;
     if (it != _dictionary.end()) {
-        return it->second;
+        result = it->second;
     }
-    return std::vector<std::wstring>();
+
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+
+    Debug::Log(L"Dictionary", (L"Lookup code: " + code +
+                               L" | Results: " + std::to_wstring(result.size()) +
+                               L" | Time: " + std::to_wstring(duration) + L"μs")
+                                  .c_str());
+
+    return result;
 }
 
 std::vector<std::wstring> CDictionary::LookupRegex(const std::wstring& pattern) const {
+    auto start = std::chrono::high_resolution_clock::now();
+
     if (pattern.empty()) return {};
     auto cacheIt = _regexCache.find(pattern);
-    if (cacheIt != _regexCache.end()) return cacheIt->second;
+    if (cacheIt != _regexCache.end()) {
+        auto end = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+        Debug::Log(L"Dictionary", (L"LookupRegex (cached) pattern: " + pattern +
+                                   L" | Results: " + std::to_wstring(cacheIt->second.size()) +
+                                   L" | Time: " + std::to_wstring(duration) + L"μs")
+                                      .c_str());
+        return cacheIt->second;
+    }
 
     // Build anchored regex and replace wildcard ＊ with '.'
     std::wstring rxText = L"^";
@@ -56,10 +80,22 @@ std::vector<std::wstring> CDictionary::LookupRegex(const std::wstring& pattern) 
     }
 
     _regexCache.emplace(pattern, out);
+
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+
+    Debug::Log(L"Dictionary", (L"LookupRegex pattern: " + pattern +
+                               L" | Results: " + std::to_wstring(out.size()) +
+                               L" | Entries scanned: " + std::to_wstring(_insertionOrder.size()) +
+                               L" | Time: " + std::to_wstring(duration) + L"μs")
+                                  .c_str());
+
     return out;
 }
 
 std::vector<std::wstring> CDictionary::GetCodesForCharacter(const std::wstring& character) const {
+    auto start = std::chrono::high_resolution_clock::now();
+
     std::vector<std::wstring> codes;
     for (const auto& kv : _dictionary) {
         for (const auto& ch : kv.second) {
@@ -69,6 +105,15 @@ std::vector<std::wstring> CDictionary::GetCodesForCharacter(const std::wstring& 
             }
         }
     }
+
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+
+    Debug::Log(L"Dictionary", (L"GetCodesForCharacter: " + character +
+                               L" | Results: " + std::to_wstring(codes.size()) +
+                               L" | Time: " + std::to_wstring(duration) + L"μs")
+                                  .c_str());
+
     return codes;
 }
 
