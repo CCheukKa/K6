@@ -1,6 +1,15 @@
 #include "CandidateWindow.h"
 
+#include <dwmapi.h>
+
+#pragma comment(lib, "dwmapi.lib")
+
 static const wchar_t* CANDIDATE_WINDOW_CLASS = L"ChineseIMECandidateWindow";
+
+// Windows 11 rounded corner preference
+#ifndef DWMWA_WINDOW_CORNER_PREFERENCE
+#define DWMWA_WINDOW_CORNER_PREFERENCE 33
+#endif
 
 CCandidateWindow::CCandidateWindow()
     : _hwnd(nullptr), _shown(FALSE), _selection(0), _page(0) {
@@ -20,6 +29,7 @@ void CCandidateWindow::SetCandidates(const std::vector<std::wstring>& candidates
     if (_hwnd) {
         RECT rc = CalculateWindowSize();
         SetWindowPos(_hwnd, HWND_TOPMOST, 0, 0, rc.right, rc.bottom, SWP_NOMOVE | SWP_NOACTIVATE);
+        ApplyRoundedCorners();
         InvalidateRect(_hwnd, nullptr, TRUE);
     }
 }
@@ -36,6 +46,9 @@ void CCandidateWindow::SetState(InputState state) {  // Change parameter type
 void CCandidateWindow::SetStrokeInput(const std::wstring& strokeinput) {
     _strokeinput = strokeinput;
     if (_hwnd) {
+        RECT rc = CalculateWindowSize();
+        SetWindowPos(_hwnd, HWND_TOPMOST, 0, 0, rc.right, rc.bottom, SWP_NOMOVE | SWP_NOACTIVATE);
+        ApplyRoundedCorners();
         InvalidateRect(_hwnd, nullptr, TRUE);
     }
 }
@@ -43,6 +56,9 @@ void CCandidateWindow::SetStrokeInput(const std::wstring& strokeinput) {
 void CCandidateWindow::SetGhostStrokeInput(const std::wstring& ghostStrokeInput) {
     _ghostStrokeInput = ghostStrokeInput;
     if (_hwnd) {
+        RECT rc = CalculateWindowSize();
+        SetWindowPos(_hwnd, HWND_TOPMOST, 0, 0, rc.right, rc.bottom, SWP_NOMOVE | SWP_NOACTIVATE);
+        ApplyRoundedCorners();
         InvalidateRect(_hwnd, nullptr, TRUE);
     }
 }
@@ -66,6 +82,7 @@ void CCandidateWindow::SetPage(UINT page) {
     if (_hwnd) {
         RECT rc = CalculateWindowSize();
         SetWindowPos(_hwnd, HWND_TOPMOST, 0, 0, rc.right, rc.bottom, SWP_NOMOVE | SWP_NOACTIVATE);
+        ApplyRoundedCorners();
         InvalidateRect(_hwnd, nullptr, TRUE);
     }
 }
@@ -234,6 +251,34 @@ void CCandidateWindow::CreateWindowIfNeeded() {
         CANDIDATE_WINDOW_CLASS, L"", WS_POPUP | WS_BORDER,
         CW_USEDEFAULT, CW_USEDEFAULT, rc.right, rc.bottom,
         nullptr, nullptr, GetModuleHandle(nullptr), this);
+
+    if (_hwnd) {
+        ApplyRoundedCorners();
+    }
+}
+
+void CCandidateWindow::ApplyRoundedCorners() {
+    if (!_hwnd) return;
+
+    // Try Windows 11 DWM rounded corners first
+    DWM_WINDOW_CORNER_PREFERENCE cornerPreference = DWMWCP_ROUND;
+    HRESULT hr = DwmSetWindowAttribute(_hwnd, DWMWA_WINDOW_CORNER_PREFERENCE,
+                                       &cornerPreference, sizeof(cornerPreference));
+
+    // If DWM method fails (older Windows), use region-based rounded corners
+    if (FAILED(hr)) {
+        RECT rect;
+        GetWindowRect(_hwnd, &rect);
+        int width = rect.right - rect.left;
+        int height = rect.bottom - rect.top;
+
+        // Create rounded rectangle region (8 pixel radius)
+        HRGN hRgn = CreateRoundRectRgn(0, 0, width, height, 16, 16);
+        if (hRgn) {
+            SetWindowRgn(_hwnd, hRgn, TRUE);
+            // Note: SetWindowRgn takes ownership of the region, no need to DeleteObject
+        }
+    }
 }
 
 RECT CCandidateWindow::CalculateWindowSize() {
@@ -242,5 +287,32 @@ RECT CCandidateWindow::CalculateWindowSize() {
     UINT count = (start < total) ? min(CANDIDATES_PER_PAGE, total - start) : 0;
     int height = PADDING * 2 + (int)count * LINE_HEIGHT;
     if (!_strokeinput.empty() || !_ghostStrokeInput.empty()) height += LINE_HEIGHT + 4;
-    return {0, 0, MIN_WIDTH, height};
+
+    // Calculate required width based on strokeinput/ghost stroke input content
+    int width = MIN_WIDTH;
+    if (!_strokeinput.empty() || !_ghostStrokeInput.empty()) {
+        HDC hdc = GetDC(nullptr);
+        if (hdc) {
+            HFONT hFont = CreateFont(22, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+                                     DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                                     CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Microsoft JhengHei");
+            HFONT hOldFont = (HFONT)SelectObject(hdc, hFont);
+
+            SIZE textSize = {0, 0};
+            const std::wstring& textToMeasure = !_strokeinput.empty() ? _strokeinput : _ghostStrokeInput;
+            GetTextExtentPoint32(hdc, textToMeasure.c_str(), (int)textToMeasure.length(), &textSize);
+
+            SelectObject(hdc, hOldFont);
+            DeleteObject(hFont);
+            ReleaseDC(nullptr, hdc);
+
+            // Add padding on both sides
+            int requiredWidth = textSize.cx + PADDING * 2;
+            if (requiredWidth > width) {
+                width = requiredWidth;
+            }
+        }
+    }
+
+    return {0, 0, width, height};
 }

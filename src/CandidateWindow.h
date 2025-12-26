@@ -41,6 +41,7 @@ class CCandidateWindow {
 
     // Helper methods
     void CreateWindowIfNeeded();
+    void ApplyRoundedCorners();
     RECT CalculateWindowSize();
     void Paint(HDC hdc);
 
