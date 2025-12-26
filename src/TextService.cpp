@@ -304,6 +304,7 @@ void CTextService::ShowSuggestionsForCharacter(const std::wstring& ch) {
         _suggestions.clear();
         return;
     }
+    // Use only the last character for lookup, per request.
     std::wstring key(1, ch.back());
     _suggestions = _suggestionDict.Lookup(key);
 }

@@ -3,6 +3,7 @@
 #include <windows.h>
 
 #include <fstream>
+#include <sstream>
 #include <string>
 
 static std::wstring Utf8ToWideS(const std::string& utf8) {
@@ -66,10 +67,18 @@ bool CSuggestions::LoadFromFile(const std::wstring& path) {
         if (tabPos == std::string::npos || tabPos == 0) continue;
 
         std::string ch = line.substr(0, tabPos);
-        std::string sg = line.substr(tabPos + 1);
-        if (ch.empty() || sg.empty()) continue;
+        std::string rhs = line.substr(tabPos + 1);
+        if (ch.empty() || rhs.empty()) continue;
 
-        AddEntry(Utf8ToWideS(ch), Utf8ToWideS(sg));
+        // New format: <character>\t<suggestion1> <suggestion2> ...
+        // Split RHS by ASCII whitespace and add each suggestion while preserving order.
+        std::istringstream iss(rhs);
+        std::string token;
+        while (iss >> token) {
+            if (!token.empty()) {
+                AddEntry(Utf8ToWideS(ch), Utf8ToWideS(token));
+            }
+        }
     }
     return true;
 }
