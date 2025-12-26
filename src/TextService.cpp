@@ -23,6 +23,19 @@ static void DebugLog(const wchar_t* msg, WPARAM wParam) {
     OutputDebugStringW(L"\n");
 }
 
+static void DebugLogStroke(const wchar_t* msg, const std::wstring& stroke) {
+    std::wstringstream ss;
+    ss << "[IME][TextService] " << msg << L" stroke='" << stroke << L"' [";
+
+    for (wchar_t c : stroke) {
+        ss << L"0x" << std::hex << static_cast<int>(c) << L" ";
+    }
+
+    ss << L"]";
+    OutputDebugStringW(ss.str().c_str());
+    OutputDebugStringW(L"\n");
+}
+
 static void DebugLog(const wchar_t* msg, const InputAction& action) {
     std::wstringstream ss;
     ss << "[IME][TextService] " << msg << L" type=" << static_cast<int>(action.type) << L" stroke=" << action.stroke
@@ -146,6 +159,7 @@ void CTextService::HandleInputAction(ITfContext* pContext, const InputAction& ac
 
         case InputActionType::ADD_STROKE: {
             DebugLog(L"Action: ADD_STROKE");
+            DebugLogStroke(L"ADD_STROKE details", std::wstring(1, action.stroke));
             if (_state == InputState::TYPING) {
                 _ghostPreedit.clear();
                 _preedit.push_back(action.stroke);
@@ -363,8 +377,12 @@ void CTextService::CommitText(ITfContext* pContext, const std::wstring& text) {
 void CTextService::UpdateCandidateWindow() {
     {
         std::wstringstream ss;
-        ss << L"[IME][TS->CW] UpdateCandidateWindow preedit='" << _preedit << L"' ghost='" << _ghostPreedit
-           << L"' cand=" << _candidates.size() << L" sugg=" << _suggestions.size() << L" page=" << _page;
+        ss << L"[IME][TS->CW] UpdateCandidateWindow preedit='";
+        for (wchar_t c : _preedit) {
+            ss << c << L"(0x" << std::hex << static_cast<int>(c) << std::dec << L") ";
+        }
+        ss << L"' ghost='" << _ghostPreedit << L"' cand=" << _candidates.size() << L" sugg=" << _suggestions.size()
+           << L" page=" << _page;
         OutputDebugStringW(ss.str().c_str());
         OutputDebugStringW(L"\n");
     }
