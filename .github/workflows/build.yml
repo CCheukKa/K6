@@ -27,6 +27,8 @@ jobs:
                   path: ./build/output
             - name: Create a Release
               uses: elgohr/Github-Release-Action@v5
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               with:
                   title: "${{github.event.head_commit.timestamp}} - ${{github.sha}}"
                   workdir: ./build/output
