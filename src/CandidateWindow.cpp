@@ -114,15 +114,21 @@ void CCandidateWindow::UpdatePosition(POINT pt) {
     int width = rc.right;
     int height = rc.bottom;
 
-    // Keep window on screen
+    // Place the candidate window at the top-left of the work area for the monitor
+    // that contains the provided point (with a small margin).
     HMONITOR hMonitor = MonitorFromPoint(pt, MONITOR_DEFAULTTONEAREST);
     MONITORINFO mi = {sizeof(mi)};
+    int x = 6, y = 6;
     if (GetMonitorInfo(hMonitor, &mi)) {
-        if (pt.x + width > mi.rcWork.right) pt.x = mi.rcWork.right - width;
-        if (pt.y + height > mi.rcWork.bottom) pt.y = pt.y - height - 20;
+        x = mi.rcWork.left + 6;
+        y = mi.rcWork.top + 6;
+
+        // Ensure the window stays within the work area
+        if (x + width > mi.rcWork.right) x = max(mi.rcWork.left, mi.rcWork.right - width - 6);
+        if (y + height > mi.rcWork.bottom) y = max(mi.rcWork.top, mi.rcWork.bottom - height - 6);
     }
 
-    SetWindowPos(_hwnd, HWND_TOPMOST, pt.x, pt.y, width, height, SWP_NOACTIVATE | SWP_SHOWWINDOW);
+    SetWindowPos(_hwnd, HWND_TOPMOST, x, y, width, height, SWP_NOACTIVATE | SWP_SHOWWINDOW);
 }
 
 LRESULT CALLBACK CCandidateWindow::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
