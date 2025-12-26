@@ -58,24 +58,31 @@ set_target_properties(K6 PROPERTIES
     OUTPUT_NAME "K6"
 )
 
-# Copy dictionary file to output directory
-add_custom_command(TARGET K6 POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-    "${CMAKE_SOURCE_DIR}/data/strokeData.txt"
-    "$<TARGET_FILE_DIR:K6>/strokeData.txt"
-    COMMENT "Copying strokeData.txt to output directory"
+# Place all built artifacts (DLL, lib, etc.) into a single output folder inside the build tree
+set(OUTPUT_DIR ${CMAKE_BINARY_DIR}/output)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${OUTPUT_DIR})
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${OUTPUT_DIR})
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${OUTPUT_DIR})
+
+# Ensure per-config directories also go to the same place for multi-config generators
+foreach(OUTPUTCONFIG ${CMAKE_CONFIGURATION_TYPES})
+    string(TOUPPER "${OUTPUTCONFIG}" OUTPUTCONFIG)
+    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_${OUTPUTCONFIG} ${OUTPUT_DIR})
+    set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_${OUTPUTCONFIG} ${OUTPUT_DIR})
+    set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_${OUTPUTCONFIG} ${OUTPUT_DIR})
+endforeach()
+
+# Stage target: produces a minimal output folder containing only the DLL and required data files
+add_custom_target(stage ALL
+    COMMENT "Staging K6 DLL and data into ${OUTPUT_DIR}"
 )
 
-# Copy suggestions file if present
-add_custom_command(TARGET K6 POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-    "${CMAKE_SOURCE_DIR}/data/suggestionsData.txt"
-    "$<TARGET_FILE_DIR:K6>/suggestionsData.txt"
-    COMMENT "Copying suggestionsData.txt to output directory"
+add_custom_command(TARGET stage POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${OUTPUT_DIR}
+    # Copy the built DLL (or executable) into the output folder
+    COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:K6> ${OUTPUT_DIR}/$<TARGET_FILE_NAME:K6>
+    # Copy required data files (if present)
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_SOURCE_DIR}/data/strokeData.txt ${OUTPUT_DIR}/strokeData.txt
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_SOURCE_DIR}/data/suggestionsData.txt ${OUTPUT_DIR}/suggestionsData.txt
     VERBATIM
 )
-
-# Install step (optional)
-install(TARGETS K6 DESTINATION bin)
-install(FILES data/strokeData.txt DESTINATION bin)
-install(FILES data/suggestionsData.txt DESTINATION bin OPTIONAL)
