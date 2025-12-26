@@ -19,7 +19,9 @@ jobs:
             - name: Checkout
               uses: actions/checkout@v4
             - name: Build
-              run: cmake --build build
+              run: | 
+                mkdir build
+                cmake --build build
             - name: Upload artifact
               uses: actions/upload-pages-artifact@v3
               with:
