@@ -18,10 +18,21 @@ jobs:
         steps:
             - name: Checkout
               uses: actions/checkout@v4
-            - name: Build
-              run: | 
+
+            - name: Install Dependencies
+              run: |
+                sudo apt-get update
+                sudo apt-get install -y cmake g++ make  # Or clang++, adjust as needed
+
+            - name: Configure CMake
+              run: |
                 mkdir build
+                cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+
+            - name: Build
+              run: |
                 cmake --build build --config Release
+
             - name: Upload artifact
               uses: actions/upload-pages-artifact@v3
               with:
