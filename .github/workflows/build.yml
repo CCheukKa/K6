@@ -26,11 +26,11 @@ jobs:
               with:
                   path: ./build/output
             - name: Zip Artifacts
-              run: Compress-Archive -Path ./build/output/* -DestinationPath ./build/K6-output.zip
+              run: Compress-Archive -Path ./build/output/* -DestinationPath ./build/K6.zip
             - name: Create a Release
               uses: ncipollo/release-action@v1
               with:
-                  artifacts: "build/K6-output.zip"
+                  artifacts: "build/K6.zip"
                   name: "${{github.event.head_commit.timestamp}} - ${{github.sha}}"
                   commit: ${{github.sha}}
                   tag: "build-${{github.run_number}}"
