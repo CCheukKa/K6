@@ -10,13 +10,24 @@
 
 // Debug helper
 static void DebugLog(const wchar_t* msg) {
-    OutputDebugStringW(msg);
+    std::wstringstream ss;
+    ss << "[IME][TextService] " << msg;
+    OutputDebugStringW(ss.str().c_str());
     OutputDebugStringW(L"\n");
 }
 
 static void DebugLog(const wchar_t* msg, WPARAM wParam) {
     std::wstringstream ss;
-    ss << msg << L" wParam=0x" << std::hex << wParam;
+    ss << "[IME][TextService] " << msg << L" wParam=0x" << std::hex << wParam;
+    OutputDebugStringW(ss.str().c_str());
+    OutputDebugStringW(L"\n");
+}
+
+static void DebugLog(const wchar_t* msg, const InputAction& action) {
+    std::wstringstream ss;
+    ss << "[IME][TextService] " << msg << L" type=" << static_cast<int>(action.type) << L" stroke=" << action.stroke
+       << L" index=" << action.index << L" char='" << action.character << L"' changeNextState=" << action.changeNextState
+       << L" nextState=" << static_cast<int>(action.nextState);
     OutputDebugStringW(ss.str().c_str());
     OutputDebugStringW(L"\n");
 }
@@ -29,21 +40,20 @@ CTextService::CTextService()
       _candidateWindow(nullptr),
       _selectedCandidate(0),
       _page(0),
-      _state(State::TYPING),
+      _state(InputState::TYPING),
       _enabled(TRUE),
-      _shiftPressed(FALSE),
-      _otherKeyPressed(FALSE) {
-    OutputDebugStringW(L"[IME] CTextService constructor started\n");
+      _stateMachine(std::make_unique<InputStateMachine>()) {
+    OutputDebugStringW(L"CTextService constructor started\n");
     _candidateWindow = new CCandidateWindow();
     _dictionary.LoadFromFile(CDictionary::GetDefaultDictionaryPath());
     _suggestionDict.LoadFromFile(CSuggestions::GetDefaultSuggestionsPath());
     bool punctLoaded = _punctuationMap.LoadFromFile(CPunctuation::GetDefaultPunctuationPath());
 
     std::wstringstream ss;
-    ss << L"[IME] Punctuation loaded: " << (punctLoaded ? L"SUCCESS" : L"FAILED")
+    ss << L"Punctuation loaded: " << (punctLoaded ? L"SUCCESS" : L"FAILED")
        << L", entries: " << _punctuationMap.GetEntryCount() << L"\n";
     OutputDebugStringW(ss.str().c_str());
-    OutputDebugStringW(L"[IME] CTextService constructor finished\n");
+    OutputDebugStringW(L"CTextService constructor finished\n");
 }
 
 CTextService::~CTextService() {
@@ -81,7 +91,7 @@ CTextService::Release() {
 
 // ITfTextInputProcessor
 STDMETHODIMP CTextService::Activate(ITfThreadMgr* ptim, TfClientId tid) {
-    DebugLog(L"[IME] Activate called");
+    DebugLog(L"Activate called");
     if (!ptim) return E_INVALIDARG;
 
     _threadMgr = ptim;
@@ -91,12 +101,12 @@ STDMETHODIMP CTextService::Activate(ITfThreadMgr* ptim, TfClientId tid) {
     if (SUCCEEDED(_threadMgr->QueryInterface(IID_ITfKeystrokeMgr, (void**)&_keystrokeMgr))) {
         HRESULT hr = _keystrokeMgr->AdviseKeyEventSink(_clientId, this, TRUE);
         if (SUCCEEDED(hr)) {
-            DebugLog(L"[IME] AdviseKeyEventSink SUCCESS");
+            DebugLog(L"AdviseKeyEventSink SUCCESS");
         } else {
-            DebugLog(L"[IME] AdviseKeyEventSink FAILED");
+            DebugLog(L"AdviseKeyEventSink FAILED");
         }
     } else {
-        DebugLog(L"[IME] Failed to get ITfKeystrokeMgr");
+        DebugLog(L"Failed to get ITfKeystrokeMgr");
     }
     return S_OK;
 }
@@ -117,149 +127,145 @@ STDMETHODIMP CTextService::Deactivate() {
 
 // ITfKeyEventSink
 STDMETHODIMP CTextService::OnSetFocus(BOOL fForeground) {
-    DebugLog(L"[IME] OnSetFocus", fForeground);
+    DebugLog(L"OnSetFocus", fForeground);
     return S_OK;
 }
 
-bool CTextService::MapStrokeKey(WPARAM wParam, wchar_t& outStroke) const {
-    // Explicitly block numpad operators FIRST - they have ASCII values that match letters
-    // VK_ADD (0x6b) = 'k', VK_MULTIPLY (0x6a) = 'j', VK_DIVIDE (0x6f) = 'o', VK_SUBTRACT (0x6d) = 'm'
-    if (wParam == VK_ADD || wParam == VK_SUBTRACT || wParam == VK_MULTIPLY || wParam == VK_DIVIDE) {
-        return false;
-    }
+void CTextService::HandleInputAction(ITfContext* pContext, const InputAction& action, BOOL* pfEaten) {
+    switch (action.type) {
+        case InputActionType::NOOP_PASS_THROUGH_KEYPRESS: {
+            DebugLog(L"Action: NOOP_PASS_THROUGH_KEYPRESS");
+            break;
+        }
 
-    if (wParam == 'O' || wParam == 'o' || wParam == VK_NUMPAD9) {
-        outStroke = Stroke::POSITIVE_DIAGONAL[0];
-        return true;
-    }
-    if (wParam == 'J' || wParam == 'j' || wParam == VK_NUMPAD4) {
-        outStroke = Stroke::NEGATIVE_DIAGONAL[0];
-        return true;
-    }
-    if (wParam == 'I' || wParam == 'i' || wParam == VK_NUMPAD8) {
-        outStroke = Stroke::VERTICAL[0];
-        return true;
-    }
-    if (wParam == 'U' || wParam == 'u' || wParam == VK_NUMPAD7) {
-        outStroke = Stroke::HORIZONTAL[0];
-        return true;
-    }
-    if (wParam == 'K' || wParam == 'k' || wParam == VK_NUMPAD5) {
-        outStroke = Stroke::COMPOUND[0];
-        return true;
-    }
-    if (wParam == 'L' || wParam == 'l' || wParam == VK_NUMPAD6) {
-        outStroke = Stroke::WILDCARD[0];
-        return true;
-    }
-    return false;
-}
+        case InputActionType::NOOP_CONSUME_KEYPRESS: {
+            DebugLog(L"Action: NOOP_CONSUME_KEYPRESS");
+            UpdateCandidateWindow();
+            break;
+        }
 
-bool CTextService::IsDigitKey(WPARAM wParam, UINT& outIndex) const {
-    if (wParam >= '0' && wParam <= '9') {
-        outIndex = static_cast<UINT>(wParam - '0');
-        return true;
+        case InputActionType::ADD_STROKE: {
+            DebugLog(L"Action: ADD_STROKE");
+            if (_state == InputState::TYPING) {
+                _ghostPreedit.clear();
+                _preedit.push_back(action.stroke);
+                _page = 0;
+                _selectedCandidate = 0;
+                UpdateQueryResults();
+            }
+            break;
+        }
+
+        case InputActionType::DELETE_STROKE: {
+            DebugLog(L"Action: DELETE_STROKE");
+            if (!_preedit.empty()) {
+                _preedit.pop_back();
+                _page = 0;
+                _selectedCandidate = 0;
+            } else {
+                _ghostPreedit.clear();
+                _suggestions.clear();
+                *pfEaten = FALSE;
+            }
+            UpdateQueryResults();
+            break;
+        }
+
+        case InputActionType::CLEAR_STROKE: {
+            DebugLog(L"Action: CLEAR_STROKE");
+            _ghostPreedit.clear();
+            _preedit.clear();
+            _candidates.clear();
+            _suggestions.clear();
+            _page = 0;
+            _selectedCandidate = 0;
+            UpdateCandidateWindow();
+            break;
+        }
+
+        case InputActionType::TOGGLE_ENABLE: {
+            DebugLog(L"Action: TOGGLE_ENABLE");
+            _enabled = !_enabled;
+            if (!_enabled) {
+                _ghostPreedit.clear();
+                _preedit.clear();
+                _candidates.clear();
+                _suggestions.clear();
+                _page = 0;
+                _selectedCandidate = 0;
+            }
+            UpdateCandidateWindow();
+            break;
+        }
+
+        case InputActionType::SELECT_CHARACTER: {
+            DebugLog(L"Action: SELECT_CHARACTER");
+            const auto& list = _candidates.empty() ? _suggestions : _candidates;
+            UINT idx = (_page * 9) + action.index;
+            if (idx < list.size()) {
+                const std::wstring chosen = list[idx];
+                CommitText(pContext, chosen);
+                SetGhostFromCharacter(chosen);
+                _preedit.clear();
+                _candidates.clear();
+                _page = 0;
+                _selectedCandidate = 0;
+                ShowSuggestionsForCharacter(chosen);
+                UpdateCandidateWindow();
+            }
+            break;
+        }
+
+        case InputActionType::NEXT_SELECTION_PAGE: {
+            DebugLog(L"Action: NEXT_SELECTION_PAGE");
+            if ((_page + 1) * 9 < (_candidates.empty() ? _suggestions.size() : _candidates.size())) {
+                _page++;
+            }
+            UpdateCandidateWindow();
+            break;
+        }
+
+        case InputActionType::PREVIOUS_SELECTION_PAGE: {
+            DebugLog(L"Action: PREVIOUS_SELECTION_PAGE");
+            if (_page > 0) {
+                _page--;
+            }
+            UpdateCandidateWindow();
+            break;
+        }
+
+        case InputActionType::SUBSTITUTE_CHARACTER: {
+            DebugLog(L"Action: SUBSTITUTE_CHARACTER");
+            CommitText(pContext, action.character);
+            _ghostPreedit.clear();
+            _preedit.clear();
+            _candidates.clear();
+            _suggestions.clear();
+            _page = 0;
+            _selectedCandidate = 0;
+            UpdateCandidateWindow();
+            break;
+        }
+
+        default:
+            break;
     }
-    if (wParam >= VK_NUMPAD0 && wParam <= VK_NUMPAD9) {
-        outIndex = static_cast<UINT>(wParam - VK_NUMPAD0);
-        return true;
-    }
-    return false;
-}
-
-bool CTextService::MapChineseSymbol(WPARAM wParam, std::wstring& outSymbol) const {
-    // Convert virtual key code to character
-    BYTE keyboardState[256];
-    GetKeyboardState(keyboardState);
-
-    wchar_t chars[4] = {0};
-    int result = ToUnicodeEx(wParam, MapVirtualKey(wParam, MAPVK_VK_TO_VSC),
-                             keyboardState, chars, 4, 0, GetKeyboardLayout(0));
-
-    if (result <= 0) {
-        std::wstringstream ss;
-        ss << L"[IME] MapChineseSymbol: ToUnicodeEx failed for wParam=0x" << std::hex << wParam << L"\n";
-        OutputDebugStringW(ss.str().c_str());
-        return false;
-    }
-
-    wchar_t asciiChar = chars[0];
-
-    std::wstringstream ss;
-    ss << L"[IME] MapChineseSymbol checking: wParam=0x" << std::hex << wParam
-       << L" (dec=" << std::dec << (int)wParam << L") -> char='" << asciiChar << L"' (0x"
-       << std::hex << (int)asciiChar << L")\n";
-    OutputDebugStringW(ss.str().c_str());
-
-    bool found = _punctuationMap.Lookup(asciiChar, outSymbol);
-
-    if (found) {
-        std::wstringstream ss2;
-        ss2 << L"[IME] MapChineseSymbol FOUND: '" << asciiChar << L"' (vk=0x"
-            << std::hex << wParam << L") -> '" << outSymbol << L"'\n";
-        OutputDebugStringW(ss2.str().c_str());
-    } else {
-        std::wstringstream ss3;
-        ss3 << L"[IME] MapChineseSymbol NOT FOUND: '" << asciiChar << L"' (vk=0x"
-            << std::hex << wParam << L")\n";
-        OutputDebugStringW(ss3.str().c_str());
-    }
-
-    return found;
 }
 
 STDMETHODIMP CTextService::OnTestKeyDown(ITfContext*, WPARAM wParam, LPARAM, BOOL* pfEaten) {
     if (!pfEaten) return E_INVALIDARG;
     *pfEaten = FALSE;
 
-    if (_state == State::DISABLED) return S_OK;
-
-    // Check for modifier keys - if any are held, let the key through
-    // This includes Shift when pressed with another key (but not lone Shift)
-    bool shiftHeld = (GetKeyState(VK_SHIFT) & 0x8000) != 0;
-    bool otherModifier = (GetKeyState(VK_CONTROL) & 0x8000) ||
-                         (GetKeyState(VK_MENU) & 0x8000) ||  // Alt key
-                         (GetKeyState(VK_LWIN) & 0x8000) ||
-                         (GetKeyState(VK_RWIN) & 0x8000);
-
-    // Let through if any non-Shift modifier is held
-    if (otherModifier) {
+    if (!_enabled && !_stateMachine->IsToggleEnableKey(wParam)) {
         return S_OK;
     }
 
-    UINT digit = 0;
-    wchar_t stroke = 0;
-    std::wstring symbol;
+    // Use state machine to determine if key should be consumed
+    InputAction action = _stateMachine->ProcessKey(_state, wParam);
 
-    // Check for symbol substitution first, regardless of Shift state
-    if (MapChineseSymbol(wParam, symbol)) {
+    // Consume the key if the state machine says to (but not on NOOP_PASS_THROUGH_KEYPRESS)
+    if (action.type != InputActionType::NOOP_PASS_THROUGH_KEYPRESS) {
         *pfEaten = TRUE;
-        return S_OK;
-    }
-
-    // Let through if Shift is held with a non-stroke key (and not a symbol)
-    if (shiftHeld) {
-        if (!MapStrokeKey(wParam, stroke)) {
-            return S_OK;
-        }
-    }
-    if (MapStrokeKey(wParam, stroke)) {
-        *pfEaten = TRUE;
-        return S_OK;
-    }
-    if (IsDigitKey(wParam, digit)) {
-        if (_state == State::SELECTING && digit >= 1 && digit <= 9) {
-            *pfEaten = TRUE;
-            return S_OK;
-        }
-        if (digit == 0) {
-            *pfEaten = TRUE;
-            return S_OK;
-        }
-    }
-    if (wParam == VK_BACK || wParam == VK_ESCAPE || wParam == VK_DECIMAL) {
-        *pfEaten = TRUE;
-        return S_OK;
     }
 
     return S_OK;
@@ -312,275 +318,31 @@ STDMETHODIMP CTextService::OnKeyDown(ITfContext* pContext, WPARAM wParam, LPARAM
     *pfEaten = FALSE;
     if (!pContext) return S_OK;
 
-    DebugLog(L"[IME] OnKeyDown", wParam);
+    DebugLog(L"======================================================");
+    DebugLog(L"OnKeyDown", wParam);
 
-    std::wstringstream debugSS;
-    debugSS << L"[IME] OnKeyDown wParam=0x" << std::hex << wParam << L" (" << std::dec << wParam << L")";
-    OutputDebugStringW(debugSS.str().c_str());
-    OutputDebugStringW(L"\n");
-
-    // Keep legacy shift tracking variables but don't toggle on them
-    if (wParam == VK_SHIFT || wParam == VK_LSHIFT || wParam == VK_RSHIFT) {
-        _shiftPressed = TRUE;
-        _otherKeyPressed = FALSE;
-        return S_OK;
-    }
-    if (_shiftPressed) _otherKeyPressed = TRUE;
-
-    if (_state == State::DISABLED || !_enabled) {
+    if (!_enabled && !_stateMachine->IsToggleEnableKey(wParam)) {
+        DebugLog(L"OnKeyDown PASSED: IME disabled");
         return S_OK;
     }
 
-    // Check for modifier keys - if any are held, let the key through
-    // This includes Shift when pressed with another key (but not lone Shift)
-    bool shiftHeld = (GetKeyState(VK_SHIFT) & 0x8000) != 0;
-    bool otherModifier = (GetKeyState(VK_CONTROL) & 0x8000) ||
-                         (GetKeyState(VK_MENU) & 0x8000) ||  // Alt key
-                         (GetKeyState(VK_LWIN) & 0x8000) ||
-                         (GetKeyState(VK_RWIN) & 0x8000);
-
-    // Let through if any non-Shift modifier is held
-    if (otherModifier) {
-        return S_OK;
+    // Use state machine to determine action
+    InputAction action = _stateMachine->ProcessKey(_state, wParam);
+    if (action.changeNextState) {
+        _state = action.nextState;
     }
+    DebugLog(L"OnKeyDown Action", action);
 
-    // Check for Chinese symbol substitution first, before checking shift
-    std::wstring symbol;
-    if (MapChineseSymbol(wParam, symbol)) {
-        std::wstringstream debugSS2;
-        debugSS2 << L"[IME] Symbol substitution matched: wParam=" << static_cast<wchar_t>(wParam) << L" -> " << symbol << L"\n";
-        OutputDebugStringW(debugSS2.str().c_str());
-        *pfEaten = TRUE;
-        CommitText(pContext, symbol);
-        // Clear state after symbol
-        _ghostPreedit.clear();
-        _preedit.clear();
-        _candidates.clear();
-        _suggestions.clear();
-        _page = 0;
-        _selectedCandidate = 0;
-        UpdateCandidateWindow();
-        return S_OK;
-    }
-
-    // Let through if Shift is held with a non-stroke key (for symbols)
-    if (shiftHeld) {
-        wchar_t stroke = 0;
-        // Only eat the key if it's a stroke key; otherwise let it through for symbols
-        if (!MapStrokeKey(wParam, stroke)) {
-            return S_OK;
-        }
-    }
-
-    wchar_t stroke = 0;
-    UINT digit = 0;
-
-    switch (_state) {
-        case State::TYPING: {
-            auto clearAll = [this]() {
-                _ghostPreedit.clear();
-                _preedit.clear();
-                _candidates.clear();
-                _suggestions.clear();
-                _page = 0;
-                _selectedCandidate = 0;
-                UpdateCandidateWindow();
-            };
-
-            if (MapStrokeKey(wParam, stroke)) {
-                OutputDebugStringW(L"[IME] MapStrokeKey matched\n");
-                *pfEaten = TRUE;
-                _ghostPreedit.clear();
-                _preedit.push_back(stroke);
-                _page = 0;
-                _selectedCandidate = 0;
-                UpdateQueryResults();
-                return S_OK;
-            }
-            OutputDebugStringW(L"[IME] MapStrokeKey did NOT match\n");
-
-            if (wParam == VK_BACK) {
-                OutputDebugStringW(L"[IME] VK_BACK matched\n");
-                *pfEaten = TRUE;
-                if (!_preedit.empty()) {
-                    _preedit.pop_back();
-                    _page = 0;
-                    _selectedCandidate = 0;
-                } else {
-                    _ghostPreedit.clear();
-                    _suggestions.clear();
-                }
-                UpdateQueryResults();
-                return S_OK;
-            }
-            if (wParam == VK_ESCAPE) {
-                OutputDebugStringW(L"[IME] VK_ESCAPE matched\n");
-                *pfEaten = TRUE;
-                clearAll();
-                return S_OK;
-            }
-            if (wParam == VK_DECIMAL) {
-                OutputDebugStringW(L"[IME] VK_DECIMAL (keypad .) matched, treating as escape\n");
-                *pfEaten = TRUE;
-                clearAll();
-                return S_OK;
-            }
-            if (wParam == VK_RETURN) {
-                OutputDebugStringW(L"[IME] VK_RETURN matched\n");
-                const auto& list = _candidates.empty() ? _suggestions : _candidates;
-                if (!list.empty()) {
-                    *pfEaten = TRUE;
-                    const std::wstring chosen = list[_page * 9 + 0];
-                    CommitText(pContext, chosen);
-                    SetGhostFromCharacter(chosen);
-                    _preedit.clear();
-                    _candidates.clear();
-                    _page = 0;
-                    _selectedCandidate = 0;
-                    ShowSuggestionsForCharacter(chosen);
-                    UpdateCandidateWindow();
-                }
-                return S_OK;
-            }
-            if (IsDigitKey(wParam, digit)) {
-                debugSS.str(L"");
-                debugSS << L"[IME] IsDigitKey matched, digit=" << digit;
-                OutputDebugStringW(debugSS.str().c_str());
-                OutputDebugStringW(L"\n");
-                *pfEaten = TRUE;
-                if (digit == 0) {
-                    // Only enter SELECTING mode if there are candidates
-                    if (!_candidates.empty() || !_suggestions.empty()) {
-                        _state = State::SELECTING;
-                        UpdateCandidateWindow();
-                    }
-                }
-                return S_OK;
-            }
-            OutputDebugStringW(L"[IME] IsDigitKey did NOT match\n");
-
-            // Block numpad operators
-            if (wParam == VK_MULTIPLY || wParam == VK_DIVIDE || wParam == VK_ADD || wParam == VK_SUBTRACT) {
-                debugSS.str(L"");
-                debugSS << L"[IME] BLOCKING VK_MULTIPLY/VK_DIVIDE (wParam=0x" << std::hex << wParam << std::dec << L")";
-                OutputDebugStringW(debugSS.str().c_str());
-                OutputDebugStringW(L"\n");
-                *pfEaten = TRUE;
-                return S_OK;
-            }
-
-            debugSS.str(L"");
-            debugSS << L"[IME] No handler matched for wParam=0x" << std::hex << wParam << std::dec;
-            OutputDebugStringW(debugSS.str().c_str());
-            OutputDebugStringW(L"\n");
-            break;
-        }
-        case State::SELECTING: {
-            if (IsDigitKey(wParam, digit)) {
-                debugSS.str(L"");
-                debugSS << L"[IME] SELECTING: IsDigitKey matched, digit=" << digit;
-                OutputDebugStringW(debugSS.str().c_str());
-                OutputDebugStringW(L"\n");
-                *pfEaten = TRUE;
-                if (digit == 0) {
-                    _state = State::TYPING;
-                    UpdateCandidateWindow();
-                    return S_OK;
-                }
-                if (digit >= 1 && digit <= 9) {
-                    const auto& list = _candidates.empty() ? _suggestions : _candidates;
-                    UINT idx = (_page * 9) + (digit - 1);
-                    if (idx < list.size()) {
-                        const std::wstring chosen = list[idx];
-                        CommitText(pContext, chosen);
-                        SetGhostFromCharacter(chosen);
-                        _preedit.clear();
-                        _candidates.clear();
-                        _page = 0;
-                        _selectedCandidate = 0;
-                        _state = State::TYPING;
-                        ShowSuggestionsForCharacter(chosen);
-                        UpdateCandidateWindow();
-                    }
-                }
-                return S_OK;
-            }
-            if (wParam == VK_ADD || wParam == 'm' || wParam == 'M') {
-                debugSS.str(L"");
-                debugSS << L"[IME] SELECTING: VK_ADD matched (wParam=0x" << std::hex << wParam << std::dec << L")";
-                OutputDebugStringW(debugSS.str().c_str());
-                OutputDebugStringW(L"\n");
-                *pfEaten = TRUE;
-                _page += 1;
-                UpdateCandidateWindow();
-                return S_OK;
-            }
-            if (wParam == VK_SUBTRACT || wParam == 'n' || wParam == 'N') {
-                debugSS.str(L"");
-                debugSS << L"[IME] SELECTING: VK_SUBTRACT matched (wParam=0x" << std::hex << wParam << std::dec << L")";
-                OutputDebugStringW(debugSS.str().c_str());
-                OutputDebugStringW(L"\n");
-                *pfEaten = TRUE;
-                if (_page > 0) _page -= 1;
-                UpdateCandidateWindow();
-                return S_OK;
-            }
-            // Block numpad operators
-            if (wParam == VK_MULTIPLY || wParam == VK_DIVIDE) {
-                debugSS.str(L"");
-                debugSS << L"[IME] SELECTING: BLOCKING VK_MULTIPLY/VK_DIVIDE (wParam=0x" << std::hex << wParam << std::dec << L")";
-                OutputDebugStringW(debugSS.str().c_str());
-                OutputDebugStringW(L"\n");
-                *pfEaten = TRUE;
-                return S_OK;
-            }
-            if (wParam == VK_ESCAPE) {
-                OutputDebugStringW(L"[IME] SELECTING: VK_ESCAPE matched\n");
-                *pfEaten = TRUE;
-                _state = State::TYPING;
-                _ghostPreedit.clear();
-                _preedit.clear();
-                _candidates.clear();
-                _suggestions.clear();
-                _page = 0;
-                _selectedCandidate = 0;
-                UpdateCandidateWindow();
-                return S_OK;
-            }
-            if (wParam == VK_DECIMAL) {
-                OutputDebugStringW(L"[IME] SELECTING: VK_DECIMAL (keypad .) matched, treating as escape\n");
-                *pfEaten = TRUE;
-                _state = State::TYPING;
-                _ghostPreedit.clear();
-                _preedit.clear();
-                _candidates.clear();
-                _suggestions.clear();
-                _page = 0;
-                _selectedCandidate = 0;
-                UpdateCandidateWindow();
-                return S_OK;
-            }
-            break;
-        }
-        default:
-            break;
-    }
+    // Handle the action
+    *pfEaten = (action.type != InputActionType::NOOP_PASS_THROUGH_KEYPRESS);
+    HandleInputAction(pContext, action, pfEaten);
 
     return S_OK;
 }
 
-STDMETHODIMP CTextService::OnKeyUp(ITfContext*, WPARAM wParam, LPARAM, BOOL* pfEaten) {
+STDMETHODIMP CTextService::OnKeyUp(ITfContext*, WPARAM, LPARAM, BOOL* pfEaten) {
     if (!pfEaten) return E_INVALIDARG;
     *pfEaten = FALSE;
-    if (wParam == VK_SHIFT || wParam == VK_LSHIFT || wParam == VK_RSHIFT) {
-        if (_shiftPressed && !_otherKeyPressed) {
-            // Toggle IME on lone Shift press
-            ToggleEnabled();
-            *pfEaten = TRUE;
-        }
-        _shiftPressed = FALSE;
-        _otherKeyPressed = FALSE;
-    }
     return S_OK;
 }
 
@@ -601,7 +363,7 @@ void CTextService::CommitText(ITfContext* pContext, const std::wstring& text) {
 void CTextService::UpdateCandidateWindow() {
     {
         std::wstringstream ss;
-        ss << L"[IME] UpdateCandidateWindow preedit='" << _preedit << L"' ghost='" << _ghostPreedit
+        ss << L"[IME][TS->CW] UpdateCandidateWindow preedit='" << _preedit << L"' ghost='" << _ghostPreedit
            << L"' cand=" << _candidates.size() << L" sugg=" << _suggestions.size() << L" page=" << _page;
         OutputDebugStringW(ss.str().c_str());
         OutputDebugStringW(L"\n");
@@ -627,13 +389,13 @@ void CTextService::Reset() {
     _suggestions.clear();
     _selectedCandidate = 0;
     _page = 0;
-    _state = _enabled ? State::TYPING : State::DISABLED;
+    _state = _enabled ? InputState::TYPING : InputState::DISABLED;
     _candidateWindow->Hide();
 }
 
 void CTextService::ToggleEnabled() {
     _enabled = !_enabled;
-    _state = _enabled ? State::TYPING : State::DISABLED;
+    _state = _enabled ? InputState::TYPING : InputState::DISABLED;
     if (!_enabled) {
         Reset();
     }

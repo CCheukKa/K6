@@ -24,8 +24,13 @@ void CCandidateWindow::SetCandidates(const std::vector<std::wstring>& candidates
     }
 }
 
-void CCandidateWindow::SetState(CTextService::State state) {
+void CCandidateWindow::SetState(InputState state) {  // Change parameter type
     _state = state;
+    if (_state == InputState::DISABLED) {
+        Hide();
+    } else {
+        Show();
+    }
 }
 
 void CCandidateWindow::SetPreedit(const std::wstring& preedit) {
@@ -189,7 +194,7 @@ void CCandidateWindow::Paint(HDC hdc) {
             numRect.right = numRect.left + numSize.cx + 20;  // small padding after the number
 
             // Number color
-            SetTextColor(hdc, (_state == CTextService::State::SELECTING) ? RGB(96, 96, 96) : RGB(200, 200, 200));
+            SetTextColor(hdc, (_state == InputState::SELECTING) ? RGB(255, 0, 0) : RGB(200, 200, 200));
             DrawText(hdc, numBuf, -1, &numRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
 
             RECT candRect = itemRect;

@@ -32,6 +32,8 @@ add_library(K6 SHARED
     src/guid.h
     src/Registration.cpp
     src/Registration.h
+    src/InputStateMachine.cpp
+    src/InputStateMachine.h
     resources/resource.rc
 )
 

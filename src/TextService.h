@@ -2,10 +2,12 @@
 #include <msctf.h>
 #include <windows.h>
 
+#include <memory>
 #include <string>
 #include <vector>
 
 #include "Dictionary.h"
+#include "InputStateMachine.h"
 #include "Punctuation.h"
 #include "Stroke.h"
 #include "Suggestions.h"
@@ -40,17 +42,14 @@ class CTextService : public ITfTextInputProcessor, public ITfKeyEventSink {
 
     TfClientId GetClientId() const { return _clientId; }
 
-    enum class State {
-        DISABLED,
-        TYPING,
-        SELECTING
-    };
-
    private:
     LONG _refCount;
     ITfThreadMgr* _threadMgr;
     TfClientId _clientId;
     ITfKeystrokeMgr* _keystrokeMgr;
+
+    // State machine
+    std::unique_ptr<InputStateMachine> _stateMachine;
 
     // Query / selection state
     std::wstring _preedit;                   // current query strokes
@@ -59,10 +58,8 @@ class CTextService : public ITfTextInputProcessor, public ITfKeyEventSink {
     std::vector<std::wstring> _suggestions;  // suggestion results
     UINT _selectedCandidate;                 // index in current page [0..8]
     UINT _page;                              // page for candidates/suggestions
-    State _state;
-    BOOL _enabled;          // overall IME enabled
-    BOOL _shiftPressed;     // track Shift held for toggle
-    BOOL _otherKeyPressed;  // any other key pressed while Shift is down
+    InputState _state;
+    BOOL _enabled;  // overall IME enabled
 
     CCandidateWindow* _candidateWindow;
     CDictionary _dictionary;
@@ -79,8 +76,6 @@ class CTextService : public ITfTextInputProcessor, public ITfKeyEventSink {
     void SetGhostFromCharacter(const std::wstring& ch);
     void ShowSuggestionsForCharacter(const std::wstring& ch);
 
-    // key helpers
-    bool MapStrokeKey(WPARAM vk, wchar_t& outStroke) const;
-    bool IsDigitKey(WPARAM vk, UINT& outIndex) const;  // 0..9
-    bool MapChineseSymbol(WPARAM vk, std::wstring& outSymbol) const;
+    // State machine action handler
+    void HandleInputAction(ITfContext* pContext, const InputAction& action, BOOL* pfEaten);
 };
