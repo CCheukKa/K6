@@ -21,7 +21,7 @@ jobs:
             - name: Build
               run: | 
                 mkdir build
-                cmake --build build
+                cmake --build build --config Release
             - name: Upload artifact
               uses: actions/upload-pages-artifact@v3
               with:
