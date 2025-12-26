@@ -2,7 +2,7 @@
 
 #include "InputStateMachine.h"
 
-bool Debug::_enabled = true;
+bool Debug::_enabled = false;
 
 void Debug::SetEnabled(bool enabled) {
     _enabled = enabled;
