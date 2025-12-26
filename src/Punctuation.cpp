@@ -5,6 +5,8 @@
 #include <fstream>
 #include <sstream>
 
+#include "Debug.h"
+
 CPunctuation::CPunctuation() {
 }
 
@@ -24,7 +26,7 @@ bool CPunctuation::LoadFromFile(const std::wstring& path) {
     // Open file in binary mode and handle UTF-8 decoding manually
     std::ifstream file(path, std::ios::binary);
     if (!file.is_open()) {
-        OutputDebugStringW(L"[IME] Failed to open punctuation file\n");
+        Debug::LogDirect(L"[IME] Failed to open punctuation file\n");
         return false;
     }
 
@@ -57,15 +59,17 @@ bool CPunctuation::LoadFromFile(const std::wstring& path) {
         _substitutionMap[asciiChar] = chineseStr;
 
         std::wstringstream debugSS;
-        debugSS << L"[IME] Loaded punctuation: '" << asciiChar << L"' -> '" << chineseStr << L"'\n";
-        OutputDebugStringW(debugSS.str().c_str());
+        debugSS << L"[IME] Loaded punctuation: '" << asciiChar << L"' -> '" << chineseStr << L"'";
+        Debug::LogDirect(debugSS.str().c_str());
+        Debug::LogDirect(L"\n");
     }
 
     file.close();
 
     std::wstringstream ss;
-    ss << L"[IME] Punctuation map loaded: " << _substitutionMap.size() << L" entries\n";
-    OutputDebugStringW(ss.str().c_str());
+    ss << L"[IME] Punctuation map loaded: " << _substitutionMap.size() << L" entries";
+    Debug::LogDirect(ss.str().c_str());
+    Debug::LogDirect(L"\n");
 
     return true;
 }
@@ -86,8 +90,9 @@ std::wstring CPunctuation::GetDefaultPunctuationPath() {
         }
 
         std::wstringstream ss;
-        ss << L"[IME] Punctuation file path: " << path << L"\n";
-        OutputDebugStringW(ss.str().c_str());
+        ss << L"[IME] Punctuation file path: " << path;
+        Debug::LogDirect(ss.str().c_str());
+        Debug::LogDirect(L"\n");
 
         return path;
     }

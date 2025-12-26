@@ -6,43 +6,24 @@
 #include <sstream>
 
 #include "CandidateWindow.h"
+#include "Debug.h"
 #include "EditSession.h"
 
 // Debug helper
 static void DebugLog(const wchar_t* msg) {
-    std::wstringstream ss;
-    ss << "[IME][TextService] " << msg;
-    OutputDebugStringW(ss.str().c_str());
-    OutputDebugStringW(L"\n");
+    Debug::Log(L"TextService", msg);
 }
 
-static void DebugLog(const wchar_t* msg, WPARAM wParam) {
-    std::wstringstream ss;
-    ss << "[IME][TextService] " << msg << L" wParam=0x" << std::hex << wParam;
-    OutputDebugStringW(ss.str().c_str());
-    OutputDebugStringW(L"\n");
+static void DebugLogWParam(const wchar_t* msg, WPARAM wParam) {
+    Debug::Log(L"TextService", msg, wParam);
 }
 
 static void DebugLogStroke(const wchar_t* msg, const std::wstring& stroke) {
-    std::wstringstream ss;
-    ss << "[IME][TextService] " << msg << L" stroke='" << stroke << L"' [";
-
-    for (wchar_t c : stroke) {
-        ss << L"0x" << std::hex << static_cast<int>(c) << L" ";
-    }
-
-    ss << L"]";
-    OutputDebugStringW(ss.str().c_str());
-    OutputDebugStringW(L"\n");
+    Debug::LogStroke(L"TextService", msg, stroke);
 }
 
-static void DebugLog(const wchar_t* msg, const InputAction& action) {
-    std::wstringstream ss;
-    ss << "[IME][TextService] " << msg << L" type=" << static_cast<int>(action.type) << L" stroke=" << action.stroke
-       << L" index=" << action.index << L" char='" << action.character << L"' changeNextState=" << action.changeNextState
-       << L" nextState=" << static_cast<int>(action.nextState);
-    OutputDebugStringW(ss.str().c_str());
-    OutputDebugStringW(L"\n");
+static void DebugLogAction(const wchar_t* msg, const InputAction& action) {
+    Debug::LogAction(L"TextService", msg, action);
 }
 
 CTextService::CTextService()
@@ -56,7 +37,7 @@ CTextService::CTextService()
       _state(InputState::TYPING),
       _enabled(TRUE),
       _stateMachine(std::make_unique<InputStateMachine>()) {
-    OutputDebugStringW(L"CTextService constructor started\n");
+    Debug::LogDirect(L"CTextService constructor started\n");
     _candidateWindow = new CCandidateWindow();
     _dictionary.LoadFromFile(CDictionary::GetDefaultDictionaryPath());
     _suggestionDict.LoadFromFile(CSuggestions::GetDefaultSuggestionsPath());
@@ -64,9 +45,9 @@ CTextService::CTextService()
 
     std::wstringstream ss;
     ss << L"Punctuation loaded: " << (punctLoaded ? L"SUCCESS" : L"FAILED")
-       << L", entries: " << _punctuationMap.GetEntryCount() << L"\n";
-    OutputDebugStringW(ss.str().c_str());
-    OutputDebugStringW(L"CTextService constructor finished\n");
+       << L", entries: " << _punctuationMap.GetEntryCount();
+    Debug::Log(L"TextService", ss.str().c_str());
+    Debug::LogDirect(L"CTextService constructor finished\n");
 }
 
 CTextService::~CTextService() {
@@ -140,7 +121,7 @@ STDMETHODIMP CTextService::Deactivate() {
 
 // ITfKeyEventSink
 STDMETHODIMP CTextService::OnSetFocus(BOOL fForeground) {
-    DebugLog(L"OnSetFocus", fForeground);
+    DebugLogWParam(L"OnSetFocus", fForeground);
     return S_OK;
 }
 
@@ -333,7 +314,7 @@ STDMETHODIMP CTextService::OnKeyDown(ITfContext* pContext, WPARAM wParam, LPARAM
     if (!pContext) return S_OK;
 
     DebugLog(L"======================================================");
-    DebugLog(L"OnKeyDown", wParam);
+    DebugLogWParam(L"OnKeyDown", wParam);
 
     if (!_enabled && !_stateMachine->IsToggleEnableKey(wParam)) {
         DebugLog(L"OnKeyDown PASSED: IME disabled");
@@ -345,7 +326,7 @@ STDMETHODIMP CTextService::OnKeyDown(ITfContext* pContext, WPARAM wParam, LPARAM
     if (action.changeNextState) {
         _state = action.nextState;
     }
-    DebugLog(L"OnKeyDown Action", action);
+    DebugLogAction(L"OnKeyDown Action", action);
 
     // Handle the action
     *pfEaten = (action.type != InputActionType::NOOP_PASS_THROUGH_KEYPRESS);
@@ -383,8 +364,8 @@ void CTextService::UpdateCandidateWindow() {
         }
         ss << L"' ghost='" << _ghostStrokeInput << L"' cand=" << _candidates.size() << L" sugg=" << _suggestions.size()
            << L" page=" << _page;
-        OutputDebugStringW(ss.str().c_str());
-        OutputDebugStringW(L"\n");
+        Debug::LogDirect(ss.str().c_str());
+        Debug::LogDirect(L"\n");
     }
 
     _candidateWindow->SetStrokeInput(_strokeinput);

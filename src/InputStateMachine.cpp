@@ -4,19 +4,15 @@
 
 #include <sstream>
 
+#include "Debug.h"
+
 // Debug helper
 static void DebugLog(const wchar_t* msg) {
-    std::wstringstream ss;
-    ss << "[IME][InputStateMachine] " << msg;
-    OutputDebugStringW(ss.str().c_str());
-    OutputDebugStringW(L"\n");
+    Debug::Log(L"InputStateMachine", msg);
 }
 
-static void DebugLog(const wchar_t* msg, WPARAM wParam) {
-    std::wstringstream ss;
-    ss << "[IME][InputStateMachine] " << msg << L" wParam=0x" << std::hex << wParam;
-    OutputDebugStringW(ss.str().c_str());
-    OutputDebugStringW(L"\n");
+static void DebugLogWParam(const wchar_t* msg, WPARAM wParam) {
+    Debug::Log(L"InputStateMachine", msg, wParam);
 }
 
 InputStateMachine::InputStateMachine() {
@@ -187,8 +183,8 @@ bool InputStateMachine::IsSubstitutableSymbol(WPARAM wParam, std::wstring& outSy
     if (it != _substitutableCharacters.end()) {
         outSymbol = it->second;
         std::wstringstream ss;
-        ss << L"IsSubstitutableSymbol FOUND: '" << asciiChar << L"' -> '" << outSymbol << L"'\n";
-        OutputDebugStringW(ss.str().c_str());
+        ss << L"IsSubstitutableSymbol FOUND: '" << asciiChar << L"' -> '" << outSymbol << L"'";
+        Debug::Log(L"InputStateMachine", ss.str().c_str());
         return true;
     }
 
@@ -202,8 +198,8 @@ InputAction InputStateMachine::ProcessKey(InputState currentState, WPARAM wParam
     std::wstring symbol;
 
     std::wstringstream ss;
-    ss << L"ProcessKey: State=" << (int)currentState << L", wParam=0x" << std::hex << wParam << L"\n";
-    OutputDebugStringW(ss.str().c_str());
+    ss << L"ProcessKey: State=" << (int)currentState << L", wParam=0x" << std::hex << wParam;
+    Debug::Log(L"InputStateMachine", ss.str().c_str());
 
     // Check for modifier keys first - if non-Alt modifier is held, consume nothing
     bool otherModifier = (GetKeyState(VK_CONTROL) & 0x8000) || (GetKeyState(VK_MENU) & 0x8000) ||
@@ -323,7 +319,7 @@ InputAction InputStateMachine::ProcessKey(InputState currentState, WPARAM wParam
             }
 
             if (IsPageNavigationKey(wParam, isNext)) {
-                DebugLog(L"SELECTING -> Page navigation", wParam);
+                DebugLogWParam(L"SELECTING -> Page navigation", wParam);
                 if (isNext) {
                     DebugLog(L"SELECTING -> Next page");
                     return InputAction(InputActionType::NEXT_SELECTION_PAGE);

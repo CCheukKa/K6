@@ -34,6 +34,8 @@ add_library(K6 SHARED
     src/Registration.h
     src/InputStateMachine.cpp
     src/InputStateMachine.h
+    src/Debug.cpp
+    src/Debug.h
     resources/resource.rc
 )
 
