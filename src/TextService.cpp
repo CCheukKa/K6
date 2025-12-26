@@ -317,6 +317,15 @@ STDMETHODIMP CTextService::OnKeyDown(ITfContext* pContext, WPARAM wParam, LPARAM
     DebugLog(L"======================================================");
     DebugLogWParam(L"OnKeyDown", wParam);
 
+    // Track Shift usage before early exits so disabled-path still marks modifier use.
+    if (wParam == VK_SHIFT || wParam == VK_LSHIFT || wParam == VK_RSHIFT) {
+        _shiftDown = TRUE;
+        _shiftUsedAsModifier = FALSE;
+    } else if (_shiftDown) {
+        // Any non-Shift key while Shift is down marks it as a modifier usage
+        _shiftUsedAsModifier = TRUE;
+    }
+
     if (!_enabled && !_stateMachine->IsToggleEnableKey(wParam)) {
         DebugLog(L"OnKeyDown PASSED: IME disabled");
         return S_OK;
@@ -336,9 +345,22 @@ STDMETHODIMP CTextService::OnKeyDown(ITfContext* pContext, WPARAM wParam, LPARAM
     return S_OK;
 }
 
-STDMETHODIMP CTextService::OnKeyUp(ITfContext*, WPARAM, LPARAM, BOOL* pfEaten) {
+STDMETHODIMP CTextService::OnKeyUp(ITfContext* pContext, WPARAM wParam, LPARAM, BOOL* pfEaten) {
     if (!pfEaten) return E_INVALIDARG;
     *pfEaten = FALSE;
+
+    // Handle Shift keyup toggle: only toggle if Shift was not used as a modifier
+    if (wParam == VK_SHIFT || wParam == VK_LSHIFT || wParam == VK_RSHIFT) {
+        if (_shiftDown && !_shiftUsedAsModifier) {
+            // Toggle enabled state
+            ToggleEnabled();
+            // Consume the keyup since we acted on it
+            *pfEaten = TRUE;
+        }
+        _shiftDown = FALSE;
+        _shiftUsedAsModifier = FALSE;
+    }
+
     return S_OK;
 }
 

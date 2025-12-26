@@ -61,6 +61,10 @@ class CTextService : public ITfTextInputProcessor, public ITfKeyEventSink {
     InputState _state;
     BOOL _enabled;  // overall IME enabled
 
+    // Shift-toggle tracking
+    BOOL _shiftDown = FALSE;            // whether Shift is currently held
+    BOOL _shiftUsedAsModifier = FALSE;  // whether a non-Shift key was pressed while Shift held
+
     CCandidateWindow* _candidateWindow;
     CDictionary _dictionary;
     CSuggestions _suggestionDict;

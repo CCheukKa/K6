@@ -213,11 +213,10 @@ InputAction InputStateMachine::ProcessKey(InputState currentState, WPARAM wParam
     switch (currentState) {
         case InputState::DISABLED: {
             if (IsToggleEnableKey(wParam)) {
-                DebugLog(L"DISABLED -> Toggle to TYPING");
-                InputAction action(InputActionType::TOGGLE_ENABLE);
-                action.changeNextState = true;
-                action.nextState = InputState::TYPING;
-                return action;
+                // Defer toggle to Shift keyup (handled in TextService::OnKeyUp)
+                // Consume the keydown to prevent side effects
+                DebugLog(L"DISABLED -> Defer Shift toggle to keyup");
+                return InputAction(InputActionType::NOOP_CONSUME_KEYPRESS);
             }
 
             DebugLog(L"DISABLED -> Fell through, pass through keypress");
@@ -225,12 +224,11 @@ InputAction InputStateMachine::ProcessKey(InputState currentState, WPARAM wParam
         }
 
         case InputState::TYPING: {
+            // Do not treat Shift as a toggle while typing; allow Shift-modified
+            // symbols to be entered without disabling the IME.
             if (IsToggleEnableKey(wParam)) {
-                DebugLog(L"TYPING -> Toggle to DISABLED");
-                InputAction action(InputActionType::TOGGLE_ENABLE);
-                action.changeNextState = true;
-                action.nextState = InputState::DISABLED;
-                return action;
+                DebugLog(L"TYPING -> Ignore Shift (modifier)");
+                return InputAction(InputActionType::NOOP_PASS_THROUGH_KEYPRESS);
             }
 
             if (IsStrokeKey(wParam, stroke)) {
@@ -284,12 +282,11 @@ InputAction InputStateMachine::ProcessKey(InputState currentState, WPARAM wParam
         }
 
         case InputState::SELECTING: {
+            // Do not treat Shift as a toggle while selecting; permit entry of
+            // Shift-required symbols without disabling the IME.
             if (IsToggleEnableKey(wParam)) {
-                DebugLog(L"SELECTING -> Toggle to DISABLED");
-                InputAction action(InputActionType::TOGGLE_ENABLE);
-                action.changeNextState = true;
-                action.nextState = InputState::DISABLED;
-                return action;
+                DebugLog(L"SELECTING -> Ignore Shift (modifier)");
+                return InputAction(InputActionType::NOOP_PASS_THROUGH_KEYPRESS);
             }
 
             if (IsDigitKey(wParam, digit)) {
