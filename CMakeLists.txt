@@ -75,15 +75,6 @@ add_custom_command(TARGET K6 POST_BUILD
     VERBATIM
 )
 
-# Copy punctuation file to output directory
-add_custom_command(TARGET K6 POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-    "${CMAKE_SOURCE_DIR}/data/punctuationData.txt"
-    "$<TARGET_FILE_DIR:K6>/punctuationData.txt"
-    COMMENT "Copying punctuationData.txt to output directory"
-    VERBATIM
-)
-
 # Install step (optional)
 install(TARGETS K6 DESTINATION bin)
 install(FILES data/strokeData.txt DESTINATION bin)
