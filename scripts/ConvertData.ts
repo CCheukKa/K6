@@ -2,10 +2,24 @@ import fs from "fs";
 import path from "path";
 
 const root = path.resolve(__dirname, "..");
-const strokeJsonPath = path.join(root, "data", "strokeData.json");
-const suggestionsJsonPath = path.join(root, "data", "suggestionsData.json");
-const strokeTxtPath = path.join(root, "data", "strokeData.txt");
-const suggestionsTxtPath = path.join(root, "data", "suggestionsData.txt");
+const outputDataDir = path.join(root, "data");
+if (!fs.existsSync(outputDataDir)) {
+    fs.mkdirSync(outputDataDir, { recursive: true });
+}
+const K6WebRoot = path.resolve(root, "K6-web");
+const strokeJsonPath = path.join(K6WebRoot, "public", "strokeData.json");
+const suggestionsJsonPath = path.join(K6WebRoot, "public", "suggestionsData.json");
+const strokeTxtPath = path.join(outputDataDir, "strokeData.txt");
+const suggestionsTxtPath = path.join(outputDataDir, "suggestionsData.txt");
+if (!fs.existsSync(strokeJsonPath) || !fs.existsSync(suggestionsJsonPath)) {
+    console.warn("K6-web data files not found. Running `bun run compile`.");
+    const { execSync } = require("child_process");
+    execSync("bun install", { cwd: K6WebRoot, stdio: "inherit" });
+    execSync("bun run compile", { cwd: K6WebRoot, stdio: "inherit" });
+    if (!fs.existsSync(strokeJsonPath) || !fs.existsSync(suggestionsJsonPath)) {
+        throw new Error("K6-web data files still not found after compilation.");
+    }
+}
 
 type StrokeJsonEntry = {
     character: string;
