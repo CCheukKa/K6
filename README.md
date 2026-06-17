@@ -1,7 +1,7 @@
 # K6 Stroke IME
 
-A [G6](http://www.miniapps.hk/g6code/) rewrite for Windows. Input Method Editor (IME) for stroke-based Chinese input.  
-Web version: [https://cck.wtf/stroke](https://cck.wtf/stroke)
+A [G6](http://www.miniapps.hk/g6code/) rewrite for Windows, also incorporating data from [Conway Stroke Data](https://github.com/stroke-input/stroke-input-data). Input Method Editor (IME) for stroke-based Chinese input.  
+Web version: [https://cck.wtf/K6-web](https://cck.wtf/K6-web)
 
 ---
 
