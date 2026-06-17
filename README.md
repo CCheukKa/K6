@@ -125,4 +125,4 @@ makensis.exe K6IME-Installer.nsi
 
 - **Issues:** [GitHub Issues](https://github.com/CCheukKa/K6/issues)
 - **Original G6:** [http://www.miniapps.hk/g6code/](http://www.miniapps.hk/g6code/)
-
+- **Conway Stroke Data:** [https://github.com/stroke-input/stroke-input-data](https://github.com/stroke-input/stroke-input-data)
